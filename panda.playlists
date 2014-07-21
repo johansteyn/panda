@@ -1,30 +1,29 @@
 # Comment...
 
-playlist=Samples/Tango Tunes
-samples/01-Biagi-Adoracion.wav
-samples/02-Biagi-AromaDeAmor.wav
-samples/03-Biagi-DejameAmarteAunqueSeaUnDia.wav
-samples/04-cortina.wav
-samples/05-Biagi-CantandoSeVanLasPenas.wav
-samples/06-Biagi-FlorDeMontserrat.wav
-samples/07-Biagi-CampoAfuera.wav
-samples/08-cortina.wav
-samples/09-Biagi-Golgota.wav
-samples/10-Biagi-DiDi.wav
-samples/11-Biagi-ElEntrerriano.wav
-samples/12-Biagi-LaCumparsita.wav
+playlist=Samples
+samples/Firpo/ElAeroplano.wav
+samples/Firpo/HaciaTiVaMiAlma.wav
+samples/Firpo/NochesDeFrio.wav
+samples/Firpo/Presentimiento.wav
+samples/Firpo/RecordandoLoPasado.wav
+samples/Firpo/Recordandote.wav
+samples/Firpo/SiempreTeRecuerdo.wav
+samples/Firpo/SuenoFlorido.wav
+samples/Firpo/TusOjosMeEmbelesan.wav
+samples/cortina.wav
+samples/Biagi/Adoracion.wav
+samples/Biagi/AromaDeAmor.wav
+samples/Biagi/DejameAmarteAunqueSeaUnDia.wav
+samples/cortina.wav
+samples/Biagi/CantandoSeVanLasPenas.wav
+samples/Biagi/FlorDeMontserrat.wav
+samples/Biagi/CampoAfuera.wav
+samples/cortina.wav
+samples/Biagi/Golgota.wav
+samples/Biagi/DiDi.wav
+samples/Biagi/ElEntrerriano.wav
+samples/Biagi/LaCumparsita.wav
 
-playlist=Samples/ToTango 5/Roberto Firpo
-totango5/vals/FirpoCuarteto36_El aeroplano.wav
-totango5/vals/FirpoCuarteto37_Noches de frio.wav
-totango5/vals/FirpoCuarteto37_Presentimiento.wav
-totango5/vals/FirpoCuarteto37_Siempre Te Recuerdo.wav
-totango5/vals/FirpoCuarteto37_Tus Ojos Me Embelesan .wav
-totango5/vals/FirpoCuarteto38_Hacia ti va mi Alma.wav
-totango5/vals/FirpoCuarteto39_Recordando lo pasado.wav
-totango5/vals/FirpoCuarteto39_Recordandote.wav
-totango5/vals/FirpoCuarteto39_Sueno florido.wav
-
-playlist=Samples/ToTango 5/Francisco Canaro
-totango5/tango/Canaro32-HalconNegro.wav
+playlist=Test
+test/LRMonoPhaset4.wav
 

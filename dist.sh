@@ -22,20 +22,24 @@ function check {
 
 export VERSION=1.0
 
-echo "Removing old files..."
+echo "Removing old zip files..."
 remove "panda-$VERSION.zip"
+remove "music.zip"
 
 echo "Building with Maven..."
 mvn clean package
 check
 
-echo "Zipping everything up..."
+echo "Zipping up built artifacts and config files..."
 mkdir panda
 cp target/panda-$VERSION.jar panda
 cp panda.properties panda.tags panda.playlists panda
 cp -r images panda
-cp -r music panda
 zip -r --quiet panda-$VERSION.zip panda
+check
+
+echo "Zipping up sample music files..."
+zip -r --quiet music.zip music
 check
 
 echo "Cleaning up..."
