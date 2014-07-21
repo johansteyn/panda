@@ -1,0 +1,99 @@
+# Comment...
+
+file=samples/01-Biagi-Adoracion.wav
+title=Adoración
+orchestra=Rodolfo Biagi
+singers=Carlos Heredia, Hugo Duval
+genre=Vals
+year=1951
+source=Panda
+comment=Sample file that ships with Panda.
+
+file=samples/02-Biagi-AromaDeAmor.wav
+title=Aroma de amor
+orchestra=Rodolfo Biagi
+singers=Alberto Amor
+genre=Vals
+year=1946
+source=Panda
+
+file=samples/03-Biagi-DejameAmarteAunqueSeaUnDia.wav
+title=Déjame amarte aunque sea un día
+orchestra=Rodolfo Biagi
+singers=Andrés Falgás
+genre=Vals
+year=1939
+source=Panda
+
+file=samples/04-cortina.wav
+title=Piano sample
+genre=Cortina
+
+file=samples/05-Biagi-CantandoSeVanLasPenas.wav
+title=Cantando se van las penas
+orchestra=Rodolfo Biagi
+singers=Jorge Ortiz
+genre=Milonga
+year=1940
+source=Panda
+
+file=samples/06-Biagi-FlorDeMontserrat.wav
+title=Pobre negrito (Flor de Monserrat)
+orchestra=Rodolfo Biagi
+singers=Alberto Amor
+genre=Milonga
+year=1945
+source=Panda
+
+file=samples/07-Biagi-CampoAfuera.wav
+title=Campo afuera
+orchestra=Rodolfo Biagi
+singers=Teofilo Ibañez
+genre=Milonga
+year=1939
+source=Panda
+
+file=samples/08-cortina.wav
+title=Piano sample
+genre=Cortina
+
+file=samples/09-Biagi-Golgota.wav
+title=Gólgota
+orchestra=Rodolfo Biagi
+singers=Teofilo Ibañez
+genre=Tango
+year=1938
+source=Panda
+
+file=samples/10-Biagi-DiDi.wav
+title=Didí
+orchestra=Rodolfo Biagi
+singers=
+genre=Tango
+year=1941
+source=Panda
+
+file=samples/11-Biagi-ElEntrerriano.wav
+title=El entrerriano
+orchestra=Rodolfo Biagi
+singers=
+genre=Tango
+year=1941
+source=Panda
+
+file=samples/12-Biagi-LaCumparsita.wav
+title=La cumparsita
+orchestra=Rodolfo Biagi
+singers=
+genre=Tango
+year=1942
+source=Panda
+
+file=totango5/tango/Canaro32-HalconNegro.wav
+title=Halcón negro
+orchestra=Francisco Canaro
+singers=
+genre=Tango
+year=1932
+source=ToTango5
+
