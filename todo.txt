@@ -1,0 +1,12 @@
+# Title (short)
+# Date (dd Mon YYYY)
+# Status (Open, Busy, Done, Removed)
+# Text (any length)
+
+Play Next
+21 Jul 2014
+Open
+If a track appears more than once in a playlist (eg: cortina) then the next song is always the one after the first occurrence of that repeated track.
+
+
+
