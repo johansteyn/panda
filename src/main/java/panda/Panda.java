@@ -45,7 +45,7 @@ import javax.swing.tree.*;
 
 
 // TODO: 
-// - CTRL-C nd CTRL-N to display Current and Next tracks
+// - CTRL-C and CTRL-N to display Current and Next tracks
 // - Splash screen
 // - Figure out how to output to 2 devices (phone jack and USB)
 // - Make the table row select colour configurable (default being whatever the LAF dictates)
@@ -62,8 +62,6 @@ public class Panda extends JFrame {
 	private static Color nextColor = Color.GREEN;
 	private static Map<String,Color> genreColors = new HashMap<String,Color>();
 
-//	private static List<String> projectorGenres = new ArrayList<String>();
-
 	private static int defaultModifier; // The platform-specific key modifier, eg: CTRL on Linux/Windows or CMD on Mac
 
 	private int[] customPresets;
@@ -76,8 +74,9 @@ public class Panda extends JFrame {
 	private List<Track> displayPlaylist; // The playlist that is select in the tree (and displayed in the table)
 	private List<Track> nextPlaylist; // The playlist that the next track belongs to
 	private List<Track> emptyPlaylist = new ArrayList<Track>(); 
-	private Track currentTrack; // Current track
-	private Track nextTrack; 
+	// NOTE: Use track indexes rather than track instances, since tracks can appear more than once in a playlist
+	private int currentTrackIndex = -1;
+	private int nextTrackIndex = -1; 
 	private PlayThread playThread = new PlayThread();
 	private boolean settingPosition; // Flag to indicate that the position is being set during play, ie. not by the user dragging the slider.
 	private int prevPosition = -1; // The last position that the slider was set to by the user
@@ -172,18 +171,6 @@ public class Panda extends JFrame {
 				genreColors.put(genre, color);
 			}
 		}
-
-//		String defaultValue = "Tango,Vals,Milonga";
-//		key = "panda.projector.genres";
-//		value = System.getProperty(key);
-//		if (value == null) {
-//			Util.log(Level.WARNING, "Property " + key + " not defined (Using default value " + defaultValue + ")");
-//			value = defaultValue;
-//		}
-//		StringTokenizer st = new StringTokenizer(value, ",");
-//		while (st.hasMoreTokens()) {
-//			projectorGenres.add(st.nextToken());
-//		}
 
 		// Ensure that all text is anti-aliased (especially for projector)
 		System.setProperty("awt.useSystemAAFontSettings","on"); 
@@ -477,6 +464,7 @@ public class Panda extends JFrame {
 					// Line is name of track - look it up in main list of tracks and add to tracks...
 					Track track = trackMap.get(line);
 					// TODO: What if track is null (ie. not found)?
+					//       Currently this results in a null p[ointer exception in the getValueAt method of PandaTableModel
 					tracks.add(track);
 				}
 			}
@@ -946,16 +934,16 @@ public class Panda extends JFrame {
 				if (id == KeyEvent.KEY_RELEASED) {
 					if (modifiers == defaultModifier) {
 						if (keyCode == KeyEvent.VK_C) {
-//System.out.println("*** CURRENT");
+							Util.log(Level.FINE, "dispatchKeyEvent: CTRL-C");
 							if (displayPlaylist != currentPlaylist) {
 								displayPlaylist = currentPlaylist;
 								table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
 								table.repaint();
 								// TODO: Also select corresponding node in tree...
 							}
-							displayTrack(currentTrack);
+							displayTrack(currentTrackIndex);
 						} else if (keyCode == KeyEvent.VK_N) {
-//System.out.println("*** NEXT");
+							Util.log(Level.FINE, "dispatchKeyEvent: CTRL-N");
 							if (nextPlaylist != null) {
 								displayPlaylist = nextPlaylist;
 							} else {
@@ -963,9 +951,9 @@ public class Panda extends JFrame {
 							}
 							table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
 							table.repaint();
-							displayTrack(nextTrack);
+							displayTrack(nextTrackIndex);
 						}
-						// Ensure that teh displayed playlist is selected in the tree
+						// Ensure that the displayed playlist is selected in the tree
 						// First obtain path for display playlist
 						String path = null;
 						Set set = playlistMap.keySet();
@@ -980,7 +968,7 @@ public class Panda extends JFrame {
 						if (path != null) {
 							// Then obtain the index and select that row in the tree
 							int index = getIndexForPath(path);
-//System.out.println("path: " + path + ", index=" + index);
+							Util.log(Level.FINE, "dispatchKeyEvent: path=" + path + ", index=" + index);
 							if (index >= 0) {
 								// Need to make sure that all nodes in the path are expanded
 								for (int i = 0; i <= index; i++) {
@@ -1042,8 +1030,7 @@ public class Panda extends JFrame {
 				// - The clicked row is the selected row
 				// - The clicked row represents neither the current nor next track
 				if (table.getSelectedRowCount() == 1 && clickedSelectedRow) {
-					Track t = displayPlaylist.get(row);
-					if (t != currentTrack && t != nextTrack) {
+					if (displayPlaylist != currentPlaylist || (row != currentTrackIndex && row != nextTrackIndex)) {
 						playNextMenuItem.setEnabled(true);
 					}
 				}
@@ -1066,7 +1053,7 @@ public class Panda extends JFrame {
 		playNextMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				int row = table.getSelectedRow();
-				nextTrack = displayPlaylist.get(row);
+				nextTrackIndex = row;
 				if (currentPlaylist != displayPlaylist) {
 					nextPlaylist = displayPlaylist;
 				}
@@ -1116,8 +1103,9 @@ public class Panda extends JFrame {
 					// Prevent jumping caused by setting to same position in rapid succession
 					return;
 				}
-				if (currentTrack != null) {
-					Player player = currentTrack.getPlayer();
+				if (currentTrackIndex >= 0) {
+					Track track = currentPlaylist.get(currentTrackIndex);
+					Player player = track.getPlayer();
 					int position = player.getPosition();
 					if (newPosition != position) {
 						player.setPosition(newPosition);
@@ -1291,7 +1279,7 @@ public class Panda extends JFrame {
 					}
 					playlist = s + "/" + playlist;
 				}
-//System.out.println("*** Selected playlist: " + playlist);	
+				Util.log(Level.FINE, "TreeSelectionListener.valueChanged: Selected playlist = " + playlist);	
 				Panda.this.displayPlaylist = playlistMap.get(playlist);
 				table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
 				table.repaint();
@@ -1299,102 +1287,110 @@ public class Panda extends JFrame {
 		});
 	}
 
-	private void displayTrack(Track track) {
+	private void displayTrack(int index) {
 		if (!(table.getParent() instanceof JViewport)) {
 			return;
 		}
 		JViewport viewport = (JViewport) table.getParent();
-		// Obtain index of track within displayPlaylist
-		int index = displayPlaylist.indexOf(track);
-		if (index < 0) {
-			return;
-		}
 		Rectangle rectangle = table.getCellRect(index, 0, true);
 		Point point = viewport.getViewPosition();
 		rectangle.setLocation(rectangle.x - point.x, rectangle.y - point.y);
 		viewport.scrollRectToVisible(rectangle);
 	}
 
-	// Returns the first checked track that follows the specified track (if any)
-	// Note that if the specified track is null then it will return the first checked track
-	// ie. we will end up in the same state as when Panda started
-	private Track findNextCheckedTrack(Track track) {
-		int index = 0;
-		if (track != null) {
-			index = currentPlaylist.indexOf(track) + 1;
-		}
-		for (int i = index; i < currentPlaylist.size(); i++) {
-			Track t = currentPlaylist.get(i);
-			if (t.isChecked()) {
-				return t;
+	// Returns the index of the first checked track that follows the specified index (if any)
+	// If no checked track is found, return -1
+	private int findNextCheckedTrackIndex(int index) {
+		int next = -1;
+		for (int i = index + 1; i < currentPlaylist.size(); i++) {
+			Track track = currentPlaylist.get(i);
+			if (track.isChecked()) {
+				next = i;
+				break;
 			}
 		}
-		return null;
+		Util.log(Level.FINE, "findNextCheckedTrackIndex: index=" + index + ", next=" + next);
+		return next;
 	}
 
 	// Returns the first checked track that precedes the specified track (if any)
-	// Note that if the specified track is null then it will return null
-	// If no preceding checked track is found (eg: if specified track happens to be the first track),
-	// then the specified track will be returned
-	// ie. we will stay where we are
-	private Track findPrevCheckedTrack(Track track) {
-		if (track == null) {
-			return null;
+	// If no checked track is found, return the index (ie. remain at the same track where we are)
+	private int findPrevCheckedTrackIndex(int index) {
+		if (index < 0) {
+			return -1;
 		}
-		int index = currentPlaylist.indexOf(track) - 1;
-		for (int i = index; i >= 0; i--) {
-			Track t = currentPlaylist.get(i);
-			if (t.isChecked()) {
-				return t;
+		int prev = index;
+		for (int i = index - 1; i >= 0; i--) {
+			Track track = currentPlaylist.get(i);
+			if (track.isChecked()) {
+				prev = i;
+				break;
 			}
 		}
-		return track;
+		Util.log(Level.FINE, "findPrevCheckedTrackIndex: index=" + index + ", prev=" + prev);
+		return prev;
 	}
 
 	private void updateProjector() {
 		if (projector == null) {
 			return;
 		}
+		if (currentTrackIndex < 0) {
+			projector.setDefaults();
+			return;
+		}
 		boolean useDefaults = true;
-		if (currentTrack != null) {
-			String genre = currentTrack.getTag("genre");
-			if (genre != null && Util.projectorGenres.contains(genre)) {
-				// Only display track info for configured genres
-				Player player = currentTrack.getPlayer();
-				if (player != null && !player.isPaused()) {
-					useDefaults = false;
-				}
+		Track track = currentPlaylist.get(currentTrackIndex);
+		String genre = track.getTag("genre");
+		if (genre != null && Util.projectorGenres.contains(genre)) {
+			// Only display track info for configured genres
+			Player player = track.getPlayer();
+			if (player != null && !player.isPaused()) {
+				useDefaults = false;
 			}
 		}
 		if (useDefaults) {
 			projector.setDefaults();
+			if (genre.equals("Cortina")) {
+				projector.setFooter(nextTanda());
+			}
 			return;
 		}
-		String orchestra = currentTrack.getTag("orchestra");
+		String orchestra = track.getTag("orchestra");
 		String header = System.getProperty("panda.projector.map." + orchestra);
 		if (header == null) {
 			header = orchestra;
-//		} else {
-//			header = Util.replaceSpecialChars(header);
+		//} else {
+		//	header = Util.replaceSpecialChars(header);
 		}
 		projector.setHeader(header);
 		projector.setImage("orchestra/" + header + ".jpg");
-		String year = currentTrack.getTag("year");
-		projector.setText(currentTrack.getTitle(), year);
-// TODO: Work out the genre and orchestra of next tanda...
-		//projector.setFooter("Next Tanda:  todo...");
+		String year = track.getTag("year");
+		projector.setText(track.getTitle(), year);
 		projector.setFooter(nextTanda());
 		projector.repaint();
 	}
 
-	// Depending on current and next tracks, determine the genre and orchestra of the next tanda,
-	// being the next contiguous set of 3 or more checked tracks that follow a checked cortina directly 
-	// and are of the same genre, which must be one of the configured genres
+	// Determine the genre and orchestra of the next tanda.
+	// ie. the set of 3 or more checked tracks that follow a checked cortina
+	// and all belong to the same, configured genre.
+	// TODO: Also indicate if current track is number x out of n tracks in the tanda...
 	private String nextTanda() {
 		String string = "";
-		Track track = nextTrack;
-		if (nextTrack == null) {
+		if (nextTrackIndex < 0) {
 			return string;
+		}
+		boolean cortinaFound = false;
+		String currentGenre = "";
+		if (currentPlaylist != null && currentTrackIndex >= 0) {
+			Track track = currentPlaylist.get(currentTrackIndex);
+			String g = track.getTag("genre");
+			if (g != null) {
+				currentGenre = g;
+			}
+		}
+		if (currentGenre.equals("Cortina")) {
+			cortinaFound = true;
 		}
 		List<Track> playlist = nextPlaylist;
 		if (playlist == null) {
@@ -1403,64 +1399,48 @@ public class Panda extends JFrame {
 				return string;
 			}
 		}
-		int index = playlist.indexOf(track);
-		if (index < 0) {
-			return string;
-		}
-		boolean cortinaFound = false;
 		int count = 0;
 		String genre = null;
 		String orchestra = null;
-		boolean reset = true;
-		for (int i = index; i < playlist.size(); i++) {
-			if (reset) {
-				count = 0;
-				genre = null;
-				orchestra = null;
-			}
-			track = playlist.get(i);
+		for (int i = nextTrackIndex; i < playlist.size(); i++) {
+			Track track = playlist.get(i);
 			if (!track.isChecked()) {
-				cortinaFound = false;
-				reset = true;
+				// Skip over any unchecked tracks
 				continue;
 			}
 			String g = track.getTag("genre");
 			if (g == null) {
-				cortinaFound = false;
-				reset = true;
 				continue;
 			}
 			if (g.equals("Cortina")) {
 				cortinaFound = true;
-				reset = true;
 				continue;
 			}
 			if (!cortinaFound) {
 				// Don't bother with anything else until a cortina is found
 				continue;
 			}
-			reset = false;
+			// A cortina has been found, so the next 3 tracks must all be of the same (configured) genre...
 			if (!Util.projectorGenres.contains(g)) {
-				cortinaFound = false;
-				reset = true;
-				continue;
+				genre = null;
+				break;
 			}
-			// We have found a configured genre that follows a cortina
-			count++;
 			if (genre == null) {
 				genre = g;
-			} else if (!genre.equals(g)) {
-				cortinaFound = false;
-				reset = true;
+				count = 1;
 				continue;
+			}
+			if (!g.equals(genre)) {
+				genre = null;
+				break;
 			}
 			String o = track.getTag("orchestra");
 			if (o == null || orchestra != null && !o.equals(orchestra)) {
 				orchestra = "Mixed";
-			//} else if (orchestra == null) {
 			} else {
 				orchestra = o;
 			}
+			count++;
 			if (count >= 3) {
 				break;
 			}
@@ -1476,6 +1456,8 @@ public class Panda extends JFrame {
 		return string;
 	}
 
+
+
 	class PlayThread extends Thread {
 		private boolean proceed = true; // flag to indicate that next track must become current track
 
@@ -1488,36 +1470,36 @@ public class Panda extends JFrame {
 			Util.log(Level.INFO, "Starting play thread...");
 			// Start off in paused state
 			setPaused(true);
-			currentTrack = findNextCheckedTrack(null);
+			currentTrackIndex = 0;
 			while (true) {
-				// Wait until either currentTrack or nextTrack is set...
-				while (currentTrack == null) {
+				// Wait until either current or next track index is set...
+				while (currentTrackIndex < 0) {
 					Util.pause(1000);
-					if (currentTrack == null && nextTrack != null) {
-						currentTrack = nextTrack;
+					if (currentTrackIndex < 0 && nextTrackIndex >= 0) {
+						currentTrackIndex = nextTrackIndex;
 					}
 				}
-				nextTrack = findNextCheckedTrack(currentTrack);
+				nextTrackIndex = findNextCheckedTrackIndex(currentTrackIndex);
 				// Current and next tracks must be highlighted in UI
 				SwingUtilities.invokeLater(new Runnable() {
 					public void run() {
 						table.repaint();
 					}
 				});
-				final Player player = currentTrack.getPlayer();
+				Track track = currentPlaylist.get(currentTrackIndex);
+				final Player player = track.getPlayer();
 				updateProjector();
 				try {
 					player.play();
 					if (proceed) {
-						currentTrack = nextTrack;
 						if (nextPlaylist != null) {
 							currentPlaylist = nextPlaylist;
 							nextPlaylist = null;
 						}
-						if (currentTrack == null) {
+						currentTrackIndex = nextTrackIndex;
+						if (currentTrackIndex < 0) {
 							// Reached end of playlist, so restore state to how it was at the start
 							setPaused(true);
-							currentTrack = findNextCheckedTrack(null);
 							settingPosition = true;
 						}
 					} else {
@@ -1525,22 +1507,23 @@ public class Panda extends JFrame {
 					}
 					table.repaint();
 				} catch (IOException ioe) {
-					Util.log(Level.SEVERE, "Error while playing track " + currentTrack + ": " + ioe);
+					Util.log(Level.SEVERE, "Error while playing track " + currentPlaylist.get(currentTrackIndex) + ": " + ioe);
 				} catch (UnsupportedAudioFileException uafe) {
-					Util.log(Level.SEVERE, "Error while playing track " + currentTrack + ": " + uafe);
+					Util.log(Level.SEVERE, "Error while playing track " + currentPlaylist.get(currentTrackIndex) + ": " + uafe);
 				} catch (LineUnavailableException lue) {
-					Util.log(Level.SEVERE, "Error while playing track " + currentTrack + ": " + lue);
+					Util.log(Level.SEVERE, "Error while playing track " + currentPlaylist.get(currentTrackIndex) + ": " + lue);
 				}
 			}
 		}
 
 		synchronized void prev() {
-			if (currentTrack != null) {
-				Player player = currentTrack.getPlayer();
+			Track track = currentPlaylist.get(currentTrackIndex);
+			if (track != null) {
+				Player player = track.getPlayer();
 				int position = player.getPosition();
 				if (position < 4) {
 					// We are less than 4 seconds into a track which is not the first track, so go to previous track
-					currentTrack = findPrevCheckedTrack(currentTrack);
+					currentTrackIndex = findPrevCheckedTrackIndex(currentTrackIndex);
 				}
 			}
 			proceed = false;
@@ -1584,14 +1567,14 @@ public class Panda extends JFrame {
 			if (modelCol == 0) {
 				color = Color.WHITE;
 				if (displayPlaylist == currentPlaylist) {
-					if (track == Panda.this.currentTrack) {
+					if (modelRow == Panda.this.currentTrackIndex) {
 						color = currentColor;
-					} else if (track == Panda.this.nextTrack && nextPlaylist == null) {
+					} else if (modelRow == nextTrackIndex && nextPlaylist == null) {
 						// The next track belongs to the current playlist
 						color = nextColor;
 					}
 				} else if (displayPlaylist == nextPlaylist) {
-					if (track == Panda.this.nextTrack) {
+					if (modelRow == Panda.this.nextTrackIndex) {
 						// The next track belongs to the next playlist
 						color = nextColor;
 					}
@@ -1650,10 +1633,12 @@ public class Panda extends JFrame {
 		public Object getValueAt(int row, int col) {
 			Object object = null;
 			Track track = playlist.get(row);
+			// NOTE: If track is null (because the playlist configuration lists a file that cannot be found)
+			//       then it will result in a null pointer exception below...
 			String column = getColumnName(col);
 			if (col == 0) {
 				// Special column
-				object = Boolean.valueOf(track.isChecked());
+				object = Boolean.valueOf(track.isChecked());  // TODO: NullPointerException
 			} else if (column.equals("Title")) {
 				object = track.getTitle(); 
 			} else if (column.equals("Time")) {
@@ -1722,8 +1707,8 @@ public class Panda extends JFrame {
 				boolean changed = false;
 				if (!b) {
 					// User unchecked a track - if it is the next track then find another one (if any)
-					if (track == nextTrack) {
-						nextTrack = findNextCheckedTrack(track);
+					if (row == nextTrackIndex) {
+						nextTrackIndex = findNextCheckedTrackIndex(nextTrackIndex);
 						changed = true;
 					}
 				} else {
@@ -1732,13 +1717,12 @@ public class Panda extends JFrame {
 					// occurs between the current track and the next track, 
 					// then make it the next track
 					int index = playlist.indexOf(track);
-					int currentIndex = playlist.indexOf(Panda.this.currentTrack);
 					int nextIndex = playlist.size();
-					if (nextTrack != null) {
-						nextIndex = playlist.indexOf(nextTrack);
+					if (nextTrackIndex >= 0) {
+						nextIndex = nextTrackIndex;
 					}
-					if (index > currentIndex && index < nextIndex) {
-						nextTrack = track;
+					if (index > Panda.this.currentTrackIndex && index < nextIndex) {
+						nextTrackIndex = nextIndex;
 						changed = true;
 					}
 				}
