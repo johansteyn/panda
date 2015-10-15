@@ -71,7 +71,7 @@ public class Panda extends JFrame {
 	private Map<String, List<Track>> playlistMap = new HashMap<String, List<Track>>();  // A map of playlist name to list of Track instances
 	private List<String> playlists = new ArrayList<String>(); // An list of playlist names, in the order that they appear in the playlist file, with main Music playlist at the head
 	private List<Track> currentPlaylist = new ArrayList<Track>(); // The currently playing playlist
-	private List<Track> displayPlaylist; // The playlist that is select in the tree (and displayed in the table)
+	private List<Track> displayPlaylist; // The playlist that is selected in the tree (and displayed in the table)
 	private List<Track> nextPlaylist; // The playlist that the next track belongs to
 	private List<Track> emptyPlaylist = new ArrayList<Track>(); 
 	// NOTE: Use track indexes rather than track instances, since tracks can appear more than once in a playlist
@@ -88,6 +88,7 @@ public class Panda extends JFrame {
 	// TODO: Keyboard shortcuts for menu items...
 	private JCheckBoxMenuItem projectorMenuItem = new JCheckBoxMenuItem("Projector", false);
 	private JMenuItem quitMenuItem = new JMenuItem("Quit");
+	private JMenuItem playNowMenuItem = new JMenuItem("Play now");
 	private JMenuItem playNextMenuItem = new JMenuItem("Play next");
 	private JMenuItem selectAllMenuItem = new JMenuItem("Select all");
 	private JMenuItem selectNoneMenuItem = new JMenuItem("Select none");
@@ -753,6 +754,7 @@ public class Panda extends JFrame {
 		logoPopupMenu.add(projectorMenuItem);
 		logoPopupMenu.addSeparator();
 		logoPopupMenu.add(quitMenuItem);
+		tablePopupMenu.add(playNowMenuItem);
 		tablePopupMenu.add(playNextMenuItem);
 		tablePopupMenu.addSeparator();
 		tablePopupMenu.add(selectAllMenuItem);
@@ -1024,14 +1026,17 @@ public class Panda extends JFrame {
 						break;
 					}
 				}
+				playNowMenuItem.setEnabled(false);
 				playNextMenuItem.setEnabled(false);
-				// Only enable the "play next" menu item if:
+				// Only enable the "play now" and "play next" menu items if:
 				// - Exactly one row was selected
 				// - The clicked row is the selected row
-				// - The clicked row represents neither the current nor next track
 				if (table.getSelectedRowCount() == 1 && clickedSelectedRow) {
-					if (displayPlaylist != currentPlaylist || (row != currentTrackIndex && row != nextTrackIndex)) {
-						playNextMenuItem.setEnabled(true);
+					playNowMenuItem.setEnabled(true);
+					playNextMenuItem.setEnabled(true);
+					// But disable the "play next" menu item if the clicked row represents either the current nor next track
+					if (displayPlaylist == currentPlaylist && (row == currentTrackIndex || row == nextTrackIndex)) {
+						playNextMenuItem.setEnabled(false);
 					}
 				}
 				tablePopupMenu.show(table, e.getX(), e.getY());
@@ -1048,6 +1053,23 @@ public class Panda extends JFrame {
 			public void actionPerformed(ActionEvent e) {
 				// TODO: prompt user before quitting...
 				System.exit(0);
+			}
+		});
+		playNowMenuItem.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				int row = table.getSelectedRow();
+				nextTrackIndex = row;
+				if (currentPlaylist != displayPlaylist) {
+					nextPlaylist = displayPlaylist;
+				}
+				PandaTableModel model = (PandaTableModel) table.getModel();
+				model.setValueAt(new Boolean(true), row, 0);
+				table.clearSelection();
+				playButton.requestFocusInWindow();
+				table.repaint();
+				updateProjector();
+				setPaused(false);
+				playThread.next();
 			}
 		});
 		playNextMenuItem.addActionListener(new ActionListener() {
@@ -1476,6 +1498,10 @@ public class Panda extends JFrame {
 				while (currentTrackIndex < 0) {
 					Util.pause(1000);
 					if (currentTrackIndex < 0 && nextTrackIndex >= 0) {
+						if (nextPlaylist != null) {
+							currentPlaylist = nextPlaylist;
+							nextPlaylist = null;
+						}
 						currentTrackIndex = nextTrackIndex;
 					}
 				}
