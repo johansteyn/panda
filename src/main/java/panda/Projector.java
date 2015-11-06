@@ -78,7 +78,6 @@ public class Projector extends JWindow {
 		Util.log(Level.FINE, "Starting Projector...");
 		Updater updater = new Updater();
 		updater.start();
-		//Projector projector = new Projector(new JFrame());
 		projector = new Projector(new JFrame());
 		projector.setVisible(true);
 	}
@@ -97,7 +96,7 @@ public class Projector extends JWindow {
 
 		headerLabel = new CustomLabel(width, h, Color.white, new Font("SansSerif", Font.BOLD, (int) (0.8 * h)));
 		imageLabel = new CustomLabel(width / 2, 4 * h, Color.white, null);
-		footerLabel = new CustomLabel(width, h, Color.red, new Font("SansSerif", Font.ITALIC, (int) (0.4 * h)));
+		footerLabel = new CustomLabel(width, h, Color.red, new Font("SansSerif", Font.BOLD, (int) (0.4 * h)));
 
 		setLayout(new BorderLayout());
 		add(headerLabel, BorderLayout.NORTH);
@@ -255,6 +254,10 @@ public class Projector extends JWindow {
 		footerLabel.setText(footer);
 	}
 
+	public void setDefaultFooter() {
+		footerLabel.setText(defaultFooter);
+	}
+
 	private Image loadImage(String filename) {
 		Image image = imageMap.get(filename);
 		if (image != null) {
@@ -374,7 +377,7 @@ class Updater extends Thread {
 		Exception exception = null;
 		int count = 0;
 		while (true) {
-System.out.println("Getting info from iTunes...");
+			System.out.println("Getting info from iTunes...");
 			try {
 				Runtime runtime = Runtime.getRuntime();
 				String[] args = { "osascript", "-e","tell application \"iTunes\" to if player state is playing then name of current track & \"\\n\" & artist of current track & \"\\n\" & year of current track & \"\\n\" & genre of current track & \"\\n\" & grouping of current track"};

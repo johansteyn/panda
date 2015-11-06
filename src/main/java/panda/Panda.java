@@ -54,6 +54,7 @@ public class Panda extends JFrame {
 	public static final String MUSIC_DIR;  // Absolute path, ending with a file separator
 	public static final int BANDS;
 	private static final boolean FULLSCREEN;
+	public static final int WAIT;
 
 	private static List<Image> iconImages = new ArrayList<Image>();
 
@@ -144,6 +145,7 @@ public class Panda extends JFrame {
 		} else {
 			FULLSCREEN = false;
 		}
+
 		int bands = 10;
 		String key = "panda.equalizer.bands";
 		String value = System.getProperty(key);
@@ -158,6 +160,22 @@ public class Panda extends JFrame {
 			Util.log(Level.INFO, "Invalid value for property " + key + ": " + value);
 		}
 		BANDS = bands;
+
+		int wait = 0;
+		key = "panda.wait";
+		value = System.getProperty(key);
+		if (value != null) {
+			try {
+				wait = Integer.parseInt(value);
+			} catch (NumberFormatException nfe) {
+				wait = -1;
+			}
+		}
+		if (wait < 0 || wait > 10) {
+			Util.log(Level.INFO, "Invalid value for property " + key + ": " + value);
+		}
+		WAIT = wait;
+
 		currentColor = getColor("panda.colour.track.current", currentColor);
 		nextColor = getColor("panda.colour.track.next", nextColor);
 		Properties properties = System.getProperties();
@@ -1057,11 +1075,11 @@ public class Panda extends JFrame {
 		});
 		playNowMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
+				Player.stop();
 				int row = table.getSelectedRow();
+				currentTrackIndex = row;
 				nextTrackIndex = row;
-				if (currentPlaylist != displayPlaylist) {
-					nextPlaylist = displayPlaylist;
-				}
+				currentPlaylist = displayPlaylist;
 				PandaTableModel model = (PandaTableModel) table.getModel();
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
@@ -1365,15 +1383,15 @@ public class Panda extends JFrame {
 		Track track = currentPlaylist.get(currentTrackIndex);
 		String genre = track.getTag("genre");
 		if (genre != null && Util.projectorGenres.contains(genre)) {
-			// Only display track info for configured genres
 			Player player = track.getPlayer();
 			if (player != null && !player.isPaused()) {
+				// Only display track info if current track is actually playing one of the configured genres
 				useDefaults = false;
 			}
 		}
 		if (useDefaults) {
 			projector.setDefaults();
-			if (genre.equals("Cortina")) {
+			if (!Util.projectorGenres.contains(genre)) {
 				projector.setFooter(nextTanda());
 			}
 			return;
@@ -1389,13 +1407,14 @@ public class Panda extends JFrame {
 		projector.setImage("orchestra/" + header + ".jpg");
 		String year = track.getTag("year");
 		projector.setText(track.getTitle(), year);
-		projector.setFooter(nextTanda());
+		projector.setDefaultFooter();
 		projector.repaint();
 	}
 
 	// Determine the genre and orchestra of the next tanda.
 	// ie. the set of 3 or more checked tracks that follow a checked cortina
 	// and all belong to the same, configured genre.
+	// Note that any track that isn't one of the configured genres is considered as a cortina
 	// TODO: Also indicate if current track is number x out of n tracks in the tanda...
 	private String nextTanda() {
 		String string = "";
@@ -1411,7 +1430,7 @@ public class Panda extends JFrame {
 				currentGenre = g;
 			}
 		}
-		if (currentGenre.equals("Cortina")) {
+		if (!Util.projectorGenres.contains(currentGenre)) {
 			cortinaFound = true;
 		}
 		List<Track> playlist = nextPlaylist;
@@ -1434,7 +1453,7 @@ public class Panda extends JFrame {
 			if (g == null) {
 				continue;
 			}
-			if (g.equals("Cortina")) {
+			if (!Util.projectorGenres.contains(g)) {
 				cortinaFound = true;
 				continue;
 			}
@@ -1473,7 +1492,8 @@ public class Panda extends JFrame {
 				orchestra = s;
 			}
 			//string = "Next Tanda:  " + genre + " - " + orchestra;
-			string = "Next Tanda:  " + orchestra + " (" + genre + ")";
+			//string = "Next Tanda:  " + orchestra + " (" + genre + ")";
+			string = "Next:  " + orchestra + " (" + genre + ")";
 		}
 		return string;
 	}
@@ -1517,6 +1537,12 @@ public class Panda extends JFrame {
 				updateProjector();
 				try {
 					player.play();
+					// Wait specified number of seconds before starting the next track
+					// But only if the end of the track has been reached during play.
+					// ie. not if the "Next" button or "Play Now" menu has been clicked.
+					if (WAIT > 0 && player.getDuration() == player.getPosition()) {
+						Util.pause(1000 * WAIT);
+					}
 					if (proceed) {
 						if (nextPlaylist != null) {
 							currentPlaylist = nextPlaylist;
