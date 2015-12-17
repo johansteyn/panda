@@ -312,6 +312,10 @@ public class Panda extends JFrame {
 			if (!file.isFile()) {
 				continue;
 			}
+			if (file.getName().startsWith(".")) {
+				// Exclude hidden files (annoyingly added by Dropbox)
+				continue;
+			}
 			String filename = file.getAbsolutePath();
 			filename = filename.substring(MUSIC_DIR.length());
 			if (filename.endsWith(".wav")) {
