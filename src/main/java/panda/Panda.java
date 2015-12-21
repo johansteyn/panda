@@ -61,6 +61,7 @@ public class Panda extends JFrame {
 	// Track colors
 	private static Color currentColor = Color.RED;
 	private static Color nextColor = Color.GREEN;
+	private static Color afterColor = Color.YELLOW;
 	private static Map<String,Color> genreColors = new HashMap<String,Color>();
 
 	private static int defaultModifier; // The platform-specific key modifier, eg: CTRL on Linux/Windows or CMD on Mac
@@ -73,11 +74,13 @@ public class Panda extends JFrame {
 	private List<String> playlists = new ArrayList<String>(); // An list of playlist names, in the order that they appear in the playlist file, with main Music playlist at the head
 	private List<Track> currentPlaylist = new ArrayList<Track>(); // The currently playing playlist
 	private List<Track> displayPlaylist; // The playlist that is selected in the tree (and displayed in the table)
-	private List<Track> nextPlaylist; // The playlist that the next track belongs to
+	private List<Track> nextPlaylist = currentPlaylist; // The playlist that the next track belongs to
+	private List<Track> afterPlaylist; // The playlist that the track after the current tanda belongs to
 	private List<Track> emptyPlaylist = new ArrayList<Track>(); 
 	// NOTE: Use track indexes rather than track instances, since tracks can appear more than once in a playlist
 	private int currentTrackIndex = -1;
 	private int nextTrackIndex = -1; 
+	private int afterTrackIndex = -1; 
 	private PlayThread playThread = new PlayThread();
 	private boolean settingPosition; // Flag to indicate that the position is being set during play, ie. not by the user dragging the slider.
 	private int prevPosition = -1; // The last position that the slider was set to by the user
@@ -88,9 +91,13 @@ public class Panda extends JFrame {
 	private JPopupMenu tablePopupMenu = new JPopupMenu();
 	// TODO: Keyboard shortcuts for menu items...
 	private JCheckBoxMenuItem projectorMenuItem = new JCheckBoxMenuItem("Projector", false);
+	private JMenuItem showCurrentMenuItem = new JMenuItem("Show current track");
+	private JMenuItem showNextMenuItem = new JMenuItem("Show next track");
+	private JMenuItem showAfterMenuItem = new JMenuItem("Show after track");
 	private JMenuItem quitMenuItem = new JMenuItem("Quit");
 	private JMenuItem playNowMenuItem = new JMenuItem("Play now");
 	private JMenuItem playNextMenuItem = new JMenuItem("Play next");
+	private JMenuItem playAfterMenuItem = new JMenuItem("Play after tanda");
 	private JMenuItem selectAllMenuItem = new JMenuItem("Select all");
 	private JMenuItem selectNoneMenuItem = new JMenuItem("Select none");
 
@@ -178,6 +185,7 @@ public class Panda extends JFrame {
 
 		currentColor = getColor("panda.colour.track.current", currentColor);
 		nextColor = getColor("panda.colour.track.next", nextColor);
+		afterColor = getColor("panda.colour.track.after", afterColor);
 		Properties properties = System.getProperties();
 		Set<String> keys = properties.stringPropertyNames();
 		Iterator iterator = keys.iterator();
@@ -221,7 +229,7 @@ public class Panda extends JFrame {
 		iconImages.add(toolkit.getImage(Panda.class.getResource("panda-logo-048.png")));
 		iconImages.add(toolkit.getImage(Panda.class.getResource("panda-logo-064.png")));
 		iconImages.add(toolkit.getImage(Panda.class.getResource("panda-logo-096.png")));
-		Panda panda;
+		final Panda panda;
 		// TODO: Decide whether to use a JFrame or JWindow for fullscreen...
 		// + On Ubuntu no window controls are displayed, therefor it stays in fullscreen mode (cannot minimize/maximize)
 		// - On Ubuntu the task switcher doesn't work
@@ -254,10 +262,10 @@ public class Panda extends JFrame {
 			int height = 2 * dimension.height / 3;
 			frame.setSize(width, height);
 			frame.setLocation((dimension.width - width) / 2, (dimension.height - height) / 3);
+			frame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 			frame.addWindowListener(new WindowAdapter() {
 				public void windowClosing(WindowEvent e) {
-					// TODO: prompt user before quitting...
-					System.exit(0);
+					panda.quit();
 				}
 			});
 			frame.setIconImages(iconImages);
@@ -773,14 +781,30 @@ public class Panda extends JFrame {
 
 		contentPane.setLayout(new BorderLayout());
 
+		logoPopupMenu.add(showCurrentMenuItem);
+		logoPopupMenu.add(showNextMenuItem);
+		logoPopupMenu.add(showAfterMenuItem);
+		logoPopupMenu.addSeparator();
 		logoPopupMenu.add(projectorMenuItem);
 		logoPopupMenu.addSeparator();
 		logoPopupMenu.add(quitMenuItem);
 		tablePopupMenu.add(playNowMenuItem);
 		tablePopupMenu.add(playNextMenuItem);
+		tablePopupMenu.add(playAfterMenuItem);
 		tablePopupMenu.addSeparator();
 		tablePopupMenu.add(selectAllMenuItem);
 		tablePopupMenu.add(selectNoneMenuItem);
+
+		String os = System.getProperty("os.name").toLowerCase();
+		if (os.indexOf("mac") < 0) {
+			showCurrentMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, Event.CTRL_MASK));
+			showNextMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, Event.CTRL_MASK));
+			showAfterMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Event.CTRL_MASK));
+		} else {
+			showCurrentMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, Event.META_MASK));
+			showNextMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, Event.META_MASK));
+			showAfterMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Event.META_MASK));
+		}
 
 		Box buttonBox = new Box(BoxLayout.X_AXIS);
 		leftLabel.setHorizontalAlignment(SwingConstants.LEFT);
@@ -958,54 +982,22 @@ public class Panda extends JFrame {
 				if (id == KeyEvent.KEY_RELEASED) {
 					if (modifiers == defaultModifier) {
 						if (keyCode == KeyEvent.VK_C) {
+System.out.println("*** CTRL-C");
 							Util.log(Level.FINE, "dispatchKeyEvent: CTRL-C");
-							if (displayPlaylist != currentPlaylist) {
-								displayPlaylist = currentPlaylist;
-								table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
-								table.repaint();
-								// TODO: Also select corresponding node in tree...
-							}
-							displayTrack(currentTrackIndex);
+							showCurrentTrack();
 						} else if (keyCode == KeyEvent.VK_N) {
+System.out.println("*** CTRL-N");
 							Util.log(Level.FINE, "dispatchKeyEvent: CTRL-N");
-							if (nextPlaylist != null) {
-								displayPlaylist = nextPlaylist;
-							} else {
-								displayPlaylist = currentPlaylist;
-							}
-							table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
-							table.repaint();
-							displayTrack(nextTrackIndex);
-						}
-						// Ensure that the displayed playlist is selected in the tree
-						// First obtain path for display playlist
-						String path = null;
-						Set set = playlistMap.keySet();
-						Iterator it = set.iterator();
-						while (it.hasNext()) {
-							String key = (String) it.next();
-							List<Track> playlist = playlistMap.get(key);
-							if (playlist == displayPlaylist) {
-								path = key;
-							}
-						}
-						if (path != null) {
-							// Then obtain the index and select that row in the tree
-							int index = getIndexForPath(path);
-							Util.log(Level.FINE, "dispatchKeyEvent: path=" + path + ", index=" + index);
-							if (index >= 0) {
-								// Need to make sure that all nodes in the path are expanded
-								for (int i = 0; i <= index; i++) {
-									tree.expandRow(i);
-								}
-								tree.setSelectionRow(index);
-							}
+							showNextTrack();
+						} else if (keyCode == KeyEvent.VK_A) {
+System.out.println("*** CTRL-A");
+							Util.log(Level.FINE, "dispatchKeyEvent: CTRL-A");
+							showAfterTrack();
 						}
 					}
-					if (modifiers == 0) {
-						if (keyCode == KeyEvent.VK_SPACE) {
-							System.out.println("*** SPACE");
-						}
+					if (keyCode == KeyEvent.VK_SPACE) {
+System.out.println("*** SPACE");
+						Util.log(Level.FINE, "dispatchKeyEvent: SPACE");
 					}
 				}
 				return false;
@@ -1050,15 +1042,18 @@ public class Panda extends JFrame {
 				}
 				playNowMenuItem.setEnabled(false);
 				playNextMenuItem.setEnabled(false);
-				// Only enable the "play now" and "play next" menu items if:
+				playAfterMenuItem.setEnabled(false);
+				// Only enable the play menu items if:
 				// - Exactly one row was selected
 				// - The clicked row is the selected row
 				if (table.getSelectedRowCount() == 1 && clickedSelectedRow) {
 					playNowMenuItem.setEnabled(true);
 					playNextMenuItem.setEnabled(true);
-					// But disable the "play next" menu item if the clicked row represents either the current nor next track
+					playAfterMenuItem.setEnabled(true);
+					// But disable the "play next" and "play after" menu items if the clicked row represents either the current or next track
 					if (displayPlaylist == currentPlaylist && (row == currentTrackIndex || row == nextTrackIndex)) {
 						playNextMenuItem.setEnabled(false);
+						playAfterMenuItem.setEnabled(false);
 					}
 				}
 				tablePopupMenu.show(table, e.getX(), e.getY());
@@ -1073,8 +1068,7 @@ public class Panda extends JFrame {
 		});
 		quitMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				// TODO: prompt user before quitting...
-				System.exit(0);
+				Panda.this.quit();
 			}
 		});
 		playNowMenuItem.addActionListener(new ActionListener() {
@@ -1084,6 +1078,7 @@ public class Panda extends JFrame {
 				currentTrackIndex = row;
 				nextTrackIndex = row;
 				currentPlaylist = displayPlaylist;
+				nextPlaylist = displayPlaylist;
 				PandaTableModel model = (PandaTableModel) table.getModel();
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
@@ -1098,15 +1093,41 @@ public class Panda extends JFrame {
 			public void actionPerformed(ActionEvent e) {
 				int row = table.getSelectedRow();
 				nextTrackIndex = row;
-				if (currentPlaylist != displayPlaylist) {
-					nextPlaylist = displayPlaylist;
-				}
+				nextPlaylist = displayPlaylist;
 				PandaTableModel model = (PandaTableModel) table.getModel();
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
 				playButton.requestFocusInWindow();
 				table.repaint();
 				updateProjector();
+			}
+		});
+		playAfterMenuItem.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				int row = table.getSelectedRow();
+				afterTrackIndex = row;
+				afterPlaylist = displayPlaylist;
+				PandaTableModel model = (PandaTableModel) table.getModel();
+				model.setValueAt(new Boolean(true), row, 0);
+				table.clearSelection();
+				playButton.requestFocusInWindow();
+				table.repaint();
+				updateProjector();
+			}
+		});
+		showCurrentMenuItem.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				showCurrentTrack();
+			}
+		});
+		showNextMenuItem.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				showNextTrack();
+			}
+		});
+		showAfterMenuItem.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				showAfterTrack();
 			}
 		});
 		selectAllMenuItem.addActionListener(new ActionListener() {
@@ -1331,7 +1352,39 @@ public class Panda extends JFrame {
 		});
 	}
 
+	private void showCurrentTrack() {
+		if (displayPlaylist != currentPlaylist) {
+			displayPlaylist = currentPlaylist;
+			table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
+			table.repaint();
+		}
+		displayTrack(currentTrackIndex);
+	}
+
+	private void showNextTrack() {
+		if (nextPlaylist == null || nextTrackIndex < 0) {
+			return;
+		}
+		displayPlaylist = nextPlaylist;
+		table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
+		table.repaint();
+		displayTrack(nextTrackIndex);
+	}
+
+	private void showAfterTrack() {
+		if (afterPlaylist == null || afterTrackIndex < 0) {
+			return;
+		}
+		displayPlaylist = afterPlaylist;
+		table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
+		table.repaint();
+		displayTrack(afterTrackIndex);
+	}
+
 	private void displayTrack(int index) {
+		if (index < 0) {
+			return;
+		}
 		if (!(table.getParent() instanceof JViewport)) {
 			return;
 		}
@@ -1340,14 +1393,39 @@ public class Panda extends JFrame {
 		Point point = viewport.getViewPosition();
 		rectangle.setLocation(rectangle.x - point.x, rectangle.y - point.y);
 		viewport.scrollRectToVisible(rectangle);
+
+		// Ensure that the displayed playlist is selected in the tree
+		// First obtain path for display playlist
+		String path = null;
+		Set set = playlistMap.keySet();
+		Iterator it = set.iterator();
+		while (it.hasNext()) {
+			String key = (String) it.next();
+			List<Track> playlist = playlistMap.get(key);
+			if (playlist == displayPlaylist) {
+				path = key;
+			}
+		}
+		if (path != null) {
+			// Then obtain the index and select that row in the tree
+			index = getIndexForPath(path);
+			Util.log(Level.FINE, "dispatchKeyEvent: path=" + path + ", index=" + index);
+			if (index >= 0) {
+				// Need to make sure that all nodes in the path are expanded
+				for (int i = 0; i <= index; i++) {
+					tree.expandRow(i);
+				}
+				tree.setSelectionRow(index);
+			}
+		}
 	}
 
-	// Returns the index of the first checked track that follows the specified index (if any)
+	// Returns the index of the first checked track that follows the specified index in the specified playlist
 	// If no checked track is found, return -1
-	private int findNextCheckedTrackIndex(int index) {
+	private int findNextCheckedTrackIndex(int index, List<Track> playlist) {
 		int next = -1;
-		for (int i = index + 1; i < currentPlaylist.size(); i++) {
-			Track track = currentPlaylist.get(i);
+		for (int i = index + 1; i < playlist.size(); i++) {
+			Track track = playlist.get(i);
 			if (track.isChecked()) {
 				next = i;
 				break;
@@ -1357,7 +1435,34 @@ public class Panda extends JFrame {
 		return next;
 	}
 
-	// Returns the first checked track that precedes the specified track (if any)
+	// Returns true if the specified track and the one before it are both of the same, configured genre
+	// AND the next track is of a different genre
+	private boolean isLastTrackInTanda(int index, List<Track> playlist) {
+		if (index <= 0) {
+			return false;
+		}
+		Track track = playlist.get(index);
+		String genre = track.getTag("genre");
+		if (genre == null || !Util.projectorGenres.contains(genre)) {
+			return false;
+		}
+		Track previousTrack = playlist.get(index - 1);
+		String previousGenre = previousTrack.getTag("genre");
+		if (!genre.equals(previousGenre)) {
+			return false;
+		}
+		if (nextPlaylist == null || nextTrackIndex < 0) {
+			return false;
+		}
+		Track nextTrack = nextPlaylist.get(nextTrackIndex);
+		String nextGenre = nextTrack.getTag("genre");
+		if (!genre.equals(nextGenre)) {
+			return true;
+		}
+		return false;
+	}
+
+	// Returns the first checked track that precedes the specified index in the *current* playlist
 	// If no checked track is found, return the index (ie. remain at the same track where we are)
 	private int findPrevCheckedTrackIndex(int index) {
 		if (index < 0) {
@@ -1502,7 +1607,12 @@ public class Panda extends JFrame {
 		return string;
 	}
 
-
+	private void quit() {
+		int n = JOptionPane.showConfirmDialog(Panda.this, "Really quit?", "Panda", JOptionPane.YES_NO_OPTION);
+		if (n == JOptionPane.YES_OPTION) {
+			System.exit(0);
+		}
+	}
 
 	class PlayThread extends Thread {
 		private boolean proceed = true; // flag to indicate that next track must become current track
@@ -1522,14 +1632,25 @@ public class Panda extends JFrame {
 				while (currentTrackIndex < 0) {
 					Util.pause(1000);
 					if (currentTrackIndex < 0 && nextTrackIndex >= 0) {
-						if (nextPlaylist != null) {
-							currentPlaylist = nextPlaylist;
-							nextPlaylist = null;
-						}
+						currentPlaylist = nextPlaylist;
 						currentTrackIndex = nextTrackIndex;
 					}
 				}
-				nextTrackIndex = findNextCheckedTrackIndex(currentTrackIndex);
+				// By default, the next track is the following unchecked track
+				nextTrackIndex = findNextCheckedTrackIndex(currentTrackIndex, currentPlaylist);
+				// Unless the current track is the last track in the tanda,
+				// and an "after" track has been specified, then it becomes the next track
+				if (isLastTrackInTanda(currentTrackIndex, currentPlaylist)) {
+					if (afterPlaylist != null && afterTrackIndex >= 0) {
+						nextPlaylist = afterPlaylist;
+						nextTrackIndex = afterTrackIndex;
+					}
+				}
+				if ((afterPlaylist == currentPlaylist && afterTrackIndex == currentTrackIndex)  || (afterPlaylist == nextPlaylist && afterTrackIndex == nextTrackIndex)) {
+					// The "after" track is now either the current or next track, so reset it
+					afterPlaylist = null;
+					afterTrackIndex = -1;
+				}
 				// Current and next tracks must be highlighted in UI
 				SwingUtilities.invokeLater(new Runnable() {
 					public void run() {
@@ -1548,10 +1669,7 @@ public class Panda extends JFrame {
 						Util.pause(1000 * WAIT);
 					}
 					if (proceed) {
-						if (nextPlaylist != null) {
-							currentPlaylist = nextPlaylist;
-							nextPlaylist = null;
-						}
+						currentPlaylist = nextPlaylist;
 						currentTrackIndex = nextTrackIndex;
 						if (currentTrackIndex < 0) {
 							// Reached end of playlist, so restore state to how it was at the start
@@ -1591,6 +1709,10 @@ public class Panda extends JFrame {
 			proceed = true;
 			Player.stop();
 			settingPosition = true;
+			// Not sure if I want this...
+			// iTunes always changes the display to show the track when it starts playing,
+			// but i fnd it annoying when it does that while I'm busy.
+			//showNextTrack();
 		}
 	}
 
@@ -1625,14 +1747,16 @@ public class Panda extends JFrame {
 				if (displayPlaylist == currentPlaylist) {
 					if (modelRow == Panda.this.currentTrackIndex) {
 						color = currentColor;
-					} else if (modelRow == nextTrackIndex && nextPlaylist == null) {
-						// The next track belongs to the current playlist
+					}
+				}
+				if (displayPlaylist == nextPlaylist) {
+					if (modelRow == Panda.this.nextTrackIndex) {
 						color = nextColor;
 					}
-				} else if (displayPlaylist == nextPlaylist) {
-					if (modelRow == Panda.this.nextTrackIndex) {
-						// The next track belongs to the next playlist
-						color = nextColor;
+				}
+				if (displayPlaylist == afterPlaylist) {
+					if (modelRow == Panda.this.afterTrackIndex) {
+						color = afterColor;
 					}
 				}
 			}
@@ -1760,12 +1884,21 @@ public class Panda extends JFrame {
 				Boolean bool = (Boolean) value;
 				boolean b = bool.booleanValue();
 				track.setChecked(b);
-				boolean changed = false;
 				if (!b) {
-					// User unchecked a track - if it is the next track then find another one (if any)
-					if (row == nextTrackIndex) {
-						nextTrackIndex = findNextCheckedTrackIndex(nextTrackIndex);
-						changed = true;
+					// User unchecked a track
+					if (displayPlaylist == nextPlaylist && row == nextTrackIndex) {
+						// It is the next track, so find another next track (if any)
+						nextTrackIndex = findNextCheckedTrackIndex(nextTrackIndex, nextPlaylist);
+						if (nextTrackIndex < 0) {
+							// No more tracks in the "next" playlist, so find one in the current playlist
+							nextPlaylist = currentPlaylist;
+							nextTrackIndex = findNextCheckedTrackIndex(currentTrackIndex, currentPlaylist);
+						}
+					}
+					if (displayPlaylist == afterPlaylist && row == afterTrackIndex) {
+						// It is the "after" track, so reset it
+						afterPlaylist = null;
+						afterTrackIndex = -1;
 					}
 				} else {
 					// User checked a track - if it occurs after the current track
@@ -1779,13 +1912,10 @@ public class Panda extends JFrame {
 					}
 					if (index > Panda.this.currentTrackIndex && index < nextIndex) {
 						nextTrackIndex = nextIndex;
-						changed = true;
 					}
 				}
-				if (changed) {
-					table.repaint();
-					updateProjector();
-				}
+				table.repaint();
+				updateProjector();
 			}
 			// TODO: Do we need to fire the event? What happens if we don't?
 			fireTableCellUpdated(row, col);
