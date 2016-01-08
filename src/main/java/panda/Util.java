@@ -16,6 +16,8 @@
  */
 package panda;
 
+import java.awt.*;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -259,5 +261,19 @@ System.out.println("*** After: " + string);
 		return string;
 	}
 */
+
+	// Make component's foreground (ie. text) either black or white, depending on how light or dark the background is
+//	public static void setTextColor(Component component, Color background) {
+	public static void setTextColor(Component component) {
+		Color background = component.getBackground();
+		int r = background.getRed();
+		int g = background.getGreen();
+		int b = background.getBlue();
+		if (r + g + b > 400) {
+			component.setForeground(Color.BLACK);
+		} else {
+			component.setForeground(Color.WHITE);
+		}
+	}
 }
 

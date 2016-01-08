@@ -20,7 +20,7 @@ import java.io.*;
 import java.util.*;
 import javax.sound.sampled.*;
 
-public class Track {
+public class Track implements Comparable<Track> {
 	// Normally both player and filename are not null
 	// But both cannot be null at the same time
 	private Player player;			// If null then file does not exist
@@ -101,6 +101,9 @@ public class Track {
 		return sb.toString();
 	}
 
+	public int compareTo(Track that) {
+		return this.title.compareTo(that.title);
+	}
 /*
 	public String getOrchestra() {
 		return orchestra;

@@ -91,9 +91,6 @@ public class Panda extends JFrame {
 	private JPopupMenu tablePopupMenu = new JPopupMenu();
 	// TODO: Keyboard shortcuts for menu items...
 	private JCheckBoxMenuItem projectorMenuItem = new JCheckBoxMenuItem("Projector", false);
-	private JMenuItem showCurrentMenuItem = new JMenuItem("Show current track");
-	private JMenuItem showNextMenuItem = new JMenuItem("Show next track");
-	private JMenuItem showAfterMenuItem = new JMenuItem("Show after track");
 	private JMenuItem quitMenuItem = new JMenuItem("Quit");
 	private JMenuItem playNowMenuItem = new JMenuItem("Play now");
 	private JMenuItem playNextMenuItem = new JMenuItem("Play next");
@@ -121,6 +118,10 @@ public class Panda extends JFrame {
 	private JLabel statusLabel = new JLabel(" ");
 	private JTextField searchField = new JTextField("Search...", 20);
 	private TableColumnModel tableColumnModel = new PandaTableColumnModel();
+
+	private JButton showCurrentButton = new JButton();
+	private JButton showNextButton = new JButton();
+	private JButton showAfterButton = new JButton();
 
 	private Projector projector;
 
@@ -279,6 +280,8 @@ public class Panda extends JFrame {
 		scan();
 		loadTracks();
 		readTags();
+// Note: Need to sort main playlist after loading the tracks AND reading the tags.
+Collections.sort(currentPlaylist);
 		readPlaylists();
 		// Not sure if I need to do this on event dispatch thread - better safe than sorry...
 		SwingUtilities.invokeLater(new Runnable() {
@@ -486,7 +489,7 @@ public class Panda extends JFrame {
 				}
 				if (line.startsWith("playlist=")) {
 					int index = line.indexOf("=");
-					String name = "Playlists/" + line.substring(index + 1);
+					String name = line.substring(index + 1);
 					tracks = new ArrayList<Track>();
 					playlistMap.put(name, tracks);
 					playlists.add(name);
@@ -569,6 +572,7 @@ public class Panda extends JFrame {
 		tree = new JTree(rootNode);
 		tree.setRootVisible(false);
 		tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
+		tree.setCellRenderer(new PandaTreeCellRenderer());
 
 		displayPlaylist = currentPlaylist;
 		table = new PandaTable(new PandaTableModel(displayPlaylist), tableColumnModel);
@@ -638,6 +642,20 @@ public class Panda extends JFrame {
 		}
 		return -1;
 	}
+
+	// Find the playlist value in the map, and return the name (which is the key)
+	String findPlaylistName(List<Track> playlist) {
+		Set set = playlistMap.keySet();
+		Iterator it = set.iterator();
+		while (it.hasNext()) {
+			String key = (String) it.next();
+			if (playlist == playlistMap.get(key)) {
+				return key;
+			}
+		}
+		return null;
+	}
+
 
 	// Returns new Color instance with red, green and blue values for specified property
 	// If property is not defined, or values are invalid, then the default color will be returned
@@ -781,10 +799,6 @@ public class Panda extends JFrame {
 
 		contentPane.setLayout(new BorderLayout());
 
-		logoPopupMenu.add(showCurrentMenuItem);
-		logoPopupMenu.add(showNextMenuItem);
-		logoPopupMenu.add(showAfterMenuItem);
-		logoPopupMenu.addSeparator();
 		logoPopupMenu.add(projectorMenuItem);
 		logoPopupMenu.addSeparator();
 		logoPopupMenu.add(quitMenuItem);
@@ -794,17 +808,6 @@ public class Panda extends JFrame {
 		tablePopupMenu.addSeparator();
 		tablePopupMenu.add(selectAllMenuItem);
 		tablePopupMenu.add(selectNoneMenuItem);
-
-		String os = System.getProperty("os.name").toLowerCase();
-		if (os.indexOf("mac") < 0) {
-			showCurrentMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, Event.CTRL_MASK));
-			showNextMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, Event.CTRL_MASK));
-			showAfterMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Event.CTRL_MASK));
-		} else {
-			showCurrentMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, Event.META_MASK));
-			showNextMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, Event.META_MASK));
-			showAfterMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Event.META_MASK));
-		}
 
 		Box buttonBox = new Box(BoxLayout.X_AXIS);
 		leftLabel.setHorizontalAlignment(SwingConstants.LEFT);
@@ -904,9 +907,22 @@ public class Panda extends JFrame {
 //			controlBox2.add(lvbpBox);
 		}
 
+		showCurrentButton.setBackground(currentColor);
+		showNextButton.setBackground(nextColor);
+		showAfterButton.setBackground(afterColor);
+		showCurrentButton.setBorder(new EmptyBorder(8, 0, 8, 0)); // top, left, bottom, right
+		showNextButton.setBorder(new EmptyBorder(8, 0, 8, 0));
+		showAfterButton.setBorder(new EmptyBorder(8, 0, 8, 0));
+		JPanel buttonPanel = new JPanel(new GridLayout(1, 3));
+		buttonPanel.add(showCurrentButton);
+		buttonPanel.add(showNextButton);
+		buttonPanel.add(showAfterButton);
+
 		JPanel leftPanel = new JPanel(new BorderLayout());
 		JScrollPane treeScrollPane = new JScrollPane(tree);
 		leftPanel.add(treeScrollPane);
+//		leftPanel.add(showCurrentButton, BorderLayout.SOUTH);
+		leftPanel.add(buttonPanel, BorderLayout.SOUTH);
 
 		JPanel rightPanel = new JPanel(new BorderLayout());
 		JScrollPane tableScrollPane = new JScrollPane(table);
@@ -1083,7 +1099,7 @@ System.out.println("*** SPACE");
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
 				playButton.requestFocusInWindow();
-				table.repaint();
+				refresh();
 				updateProjector();
 				setPaused(false);
 				playThread.next();
@@ -1098,7 +1114,7 @@ System.out.println("*** SPACE");
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
 				playButton.requestFocusInWindow();
-				table.repaint();
+				refresh();
 				updateProjector();
 			}
 		});
@@ -1111,21 +1127,21 @@ System.out.println("*** SPACE");
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
 				playButton.requestFocusInWindow();
-				table.repaint();
+				refresh();
 				updateProjector();
 			}
 		});
-		showCurrentMenuItem.addActionListener(new ActionListener() {
+		showCurrentButton.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				showCurrentTrack();
 			}
 		});
-		showNextMenuItem.addActionListener(new ActionListener() {
+		showNextButton.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				showNextTrack();
 			}
 		});
-		showAfterMenuItem.addActionListener(new ActionListener() {
+		showAfterButton.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				showAfterTrack();
 			}
@@ -1347,7 +1363,7 @@ System.out.println("*** SPACE");
 				Util.log(Level.FINE, "TreeSelectionListener.valueChanged: Selected playlist = " + playlist);	
 				Panda.this.displayPlaylist = playlistMap.get(playlist);
 				table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
-				table.repaint();
+				refresh();
 			}
 		});
 	}
@@ -1356,7 +1372,7 @@ System.out.println("*** SPACE");
 		if (displayPlaylist != currentPlaylist) {
 			displayPlaylist = currentPlaylist;
 			table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
-			table.repaint();
+			refresh();
 		}
 		displayTrack(currentTrackIndex);
 	}
@@ -1367,7 +1383,7 @@ System.out.println("*** SPACE");
 		}
 		displayPlaylist = nextPlaylist;
 		table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
-		table.repaint();
+		refresh();
 		displayTrack(nextTrackIndex);
 	}
 
@@ -1377,7 +1393,7 @@ System.out.println("*** SPACE");
 		}
 		displayPlaylist = afterPlaylist;
 		table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
-		table.repaint();
+		refresh();
 		displayTrack(afterTrackIndex);
 	}
 
@@ -1415,7 +1431,13 @@ System.out.println("*** SPACE");
 				for (int i = 0; i <= index; i++) {
 					tree.expandRow(i);
 				}
+				// TODO: Somehow avoid expanding nodes that aren't relevant
+				//       ie. expand backwards until we reach the top level, then stop.
+				//       I thought this would work, but the index doesn't correspond if there are collapsed nodes above...
+				//TreePath treePath = tree.getPathForRow(index);
+				//tree.expandPath(treePath);
 				tree.setSelectionRow(index);
+				tree.scrollRowToVisible(index);
 			}
 		}
 	}
@@ -1607,6 +1629,11 @@ System.out.println("*** SPACE");
 		return string;
 	}
 
+	private void refresh() {
+		tree.repaint();
+		table.repaint();
+	}
+
 	private void quit() {
 		int n = JOptionPane.showConfirmDialog(Panda.this, "Really quit?", "Panda", JOptionPane.YES_NO_OPTION);
 		if (n == JOptionPane.YES_OPTION) {
@@ -1628,7 +1655,7 @@ System.out.println("*** SPACE");
 			setPaused(true);
 			currentTrackIndex = 0;
 			while (true) {
-				// Wait until either current track index is set...
+				// Wait until current track index is set...
 				while (currentTrackIndex < 0) {
 					Util.pause(1000);
 				}
@@ -1651,7 +1678,7 @@ System.out.println("*** SPACE");
 				// Current and next tracks must be highlighted in UI
 				SwingUtilities.invokeLater(new Runnable() {
 					public void run() {
-						table.repaint();
+						refresh();
 					}
 				});
 				Track track = currentPlaylist.get(currentTrackIndex);
@@ -1685,7 +1712,7 @@ System.out.println("*** SPACE");
 					} else {
 						proceed = true;
 					}
-					table.repaint();
+					refresh();
 				} catch (IOException ioe) {
 					Util.log(Level.SEVERE, "Error while playing track " + currentPlaylist.get(currentTrackIndex) + ": " + ioe);
 				} catch (UnsupportedAudioFileException uafe) {
@@ -1722,6 +1749,52 @@ System.out.println("*** SPACE");
 		}
 	}
 
+	class PandaTreeCellRenderer implements TreeCellRenderer {
+		JPanel panel;
+		JLabel label;
+		Color backgroundSelectionColor;
+		Color backgroundNonSelectionColor;
+	
+		public PandaTreeCellRenderer() {
+			panel = new JPanel(new GridLayout(1, 1));
+			label = new JLabel(" ");
+			panel.add(label);
+			panel.setBorder(new EmptyBorder(2, 4, 2, 4)); // top, left, bottom, right
+			DefaultTreeCellRenderer defaultRenderer = new DefaultTreeCellRenderer();
+			backgroundSelectionColor = defaultRenderer.getBackgroundSelectionColor();
+			backgroundNonSelectionColor = defaultRenderer.getBackgroundNonSelectionColor();
+		}
+	
+		public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus) {
+			Object userObject = ((DefaultMutableTreeNode) value).getUserObject();
+			String name = (String) userObject;
+			label.setText(name);
+			panel.setBackground(backgroundNonSelectionColor);
+			label.setBackground(backgroundNonSelectionColor);
+			if (selected) {
+				panel.setBackground(backgroundSelectionColor);
+				label.setBackground(backgroundSelectionColor);
+			}
+			setColor(name, afterPlaylist, afterColor);
+			setColor(name, nextPlaylist, nextColor);
+			setColor(name, currentPlaylist, currentColor);
+			Util.setTextColor(label);
+			panel.setEnabled(tree.isEnabled());
+			return panel;
+		}
+
+		private void setColor(String name, List<Track> playlist, Color color) {
+			if (playlist == null) {
+				return;
+			}
+			String playlistName = findPlaylistName(playlist);
+			if (playlistName.indexOf(name) >= 0) {
+				panel.setBackground(color);
+				label.setBackground(color);
+			}
+		}
+	}
+
 	class PandaTable extends JTable {
 		public PandaTable(TableModel tableModel, TableColumnModel columnModel) {
 			super(tableModel, columnModel);
@@ -1747,35 +1820,23 @@ System.out.println("*** SPACE");
 			if (genreColors.containsKey(genre)) {
 				color = genreColors.get(genre);
 			}
-			Track track = displayPlaylist.get(modelRow);
-			if (modelCol == 0) {
-				color = Color.WHITE;
-				if (displayPlaylist == currentPlaylist) {
-					if (modelRow == Panda.this.currentTrackIndex) {
-						color = currentColor;
-					}
+			if (displayPlaylist == currentPlaylist) {
+				if (modelRow == Panda.this.currentTrackIndex) {
+					color = currentColor;
 				}
-				if (displayPlaylist == nextPlaylist) {
-					if (modelRow == Panda.this.nextTrackIndex) {
-						color = nextColor;
-					}
+			}
+			if (displayPlaylist == nextPlaylist) {
+				if (modelRow == Panda.this.nextTrackIndex) {
+					color = nextColor;
 				}
-				if (displayPlaylist == afterPlaylist) {
-					if (modelRow == Panda.this.afterTrackIndex) {
-						color = afterColor;
-					}
+			}
+			if (displayPlaylist == afterPlaylist) {
+				if (modelRow == Panda.this.afterTrackIndex) {
+					color = afterColor;
 				}
 			}
 			component.setBackground(color);
-			// Make foreground (ie. text) either black or white, depending on how light or dark the background is
-			int r = color.getRed();
-			int g = color.getGreen();
-			int b = color.getBlue();
-			if (r + g + b > 400) {
-				component.setForeground(Color.BLACK);
-			} else {
-				component.setForeground(Color.WHITE);
-			}
+			Util.setTextColor(component);
 			return component;
 		}
 	}
@@ -1920,7 +1981,7 @@ System.out.println("*** SPACE");
 						nextTrackIndex = nextIndex;
 					}
 				}
-				table.repaint();
+				refresh();
 				updateProjector();
 			}
 			// TODO: Do we need to fire the event? What happens if we don't?
@@ -2127,9 +2188,9 @@ class SafeSlider extends JSlider {
 class CustomSlider extends SafeSlider {
 	public CustomSlider(int orientation) {
 		super(orientation);
-// Tried to reduce space in GTK LAF, but seems to have no effect...
-setBorder(new EmptyBorder(0, 0, 0, 0));
-//setBorder(new LineBorder(Color.red));
+		// Tried to reduce space in GTK LAF, but seems to have no effect...
+		setBorder(new EmptyBorder(0, 0, 0, 0));
+		//setBorder(new LineBorder(Color.red));
 	}
 
 	public Dimension getMinimumSize() {
