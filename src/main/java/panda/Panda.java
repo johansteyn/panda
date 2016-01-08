@@ -1436,9 +1436,9 @@ System.out.println("*** SPACE");
 	}
 
 	// Returns true if the specified track and the one before it are both of the same, configured genre
-	// AND the next track is of a different genre
+	// AND either there is no next track OR the next track is of a different genre
 	private boolean isLastTrackInTanda(int index, List<Track> playlist) {
-		if (index <= 0) {
+		if (index <= 0 || index >= playlist.size()) {
 			return false;
 		}
 		Track track = playlist.get(index);
@@ -1452,7 +1452,7 @@ System.out.println("*** SPACE");
 			return false;
 		}
 		if (nextPlaylist == null || nextTrackIndex < 0) {
-			return false;
+			return true;
 		}
 		Track nextTrack = nextPlaylist.get(nextTrackIndex);
 		String nextGenre = nextTrack.getTag("genre");
@@ -1628,15 +1628,12 @@ System.out.println("*** SPACE");
 			setPaused(true);
 			currentTrackIndex = 0;
 			while (true) {
-				// Wait until either current or next track index is set...
+				// Wait until either current track index is set...
 				while (currentTrackIndex < 0) {
 					Util.pause(1000);
-					if (currentTrackIndex < 0 && nextTrackIndex >= 0) {
-						currentPlaylist = nextPlaylist;
-						currentTrackIndex = nextTrackIndex;
-					}
 				}
-				// By default, the next track is the following unchecked track
+				// By default, the next track is the following unchecked track in the current playlist
+				nextPlaylist = currentPlaylist;
 				nextTrackIndex = findNextCheckedTrackIndex(currentTrackIndex, currentPlaylist);
 				// Unless the current track is the last track in the tanda,
 				// and an "after" track has been specified, then it becomes the next track
@@ -1669,10 +1666,19 @@ System.out.println("*** SPACE");
 						Util.pause(1000 * WAIT);
 					}
 					if (proceed) {
-						currentPlaylist = nextPlaylist;
-						currentTrackIndex = nextTrackIndex;
-						if (currentTrackIndex < 0) {
+						if (nextTrackIndex >= 0 && nextTrackIndex < nextPlaylist.size()) {
+							currentPlaylist = nextPlaylist;
+							currentTrackIndex = nextTrackIndex;
+						} else if (afterTrackIndex >= 0 && afterTrackIndex < afterPlaylist.size()) {
+							currentPlaylist = afterPlaylist;
+							currentTrackIndex = afterTrackIndex;
+							afterPlaylist = null;
+							afterTrackIndex = -1;
+						} else {
 							// Reached end of playlist, so restore state to how it was at the start
+							currentTrackIndex = -1;
+							nextTrackIndex = -1;
+							afterTrackIndex = -1;
 							setPaused(true);
 							settingPosition = true;
 						}
