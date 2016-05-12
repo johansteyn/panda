@@ -280,8 +280,8 @@ public class Panda extends JFrame {
 		scan();
 		loadTracks();
 		readTags();
-// Note: Need to sort main playlist after loading the tracks AND reading the tags.
-Collections.sort(currentPlaylist);
+		// Note: Need to sort main playlist after loading the tracks AND reading the tags.
+		Collections.sort(currentPlaylist);
 		readPlaylists();
 		// Not sure if I need to do this on event dispatch thread - better safe than sorry...
 		SwingUtilities.invokeLater(new Runnable() {
