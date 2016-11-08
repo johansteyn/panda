@@ -47,7 +47,6 @@ import javax.swing.tree.*;
 // TODO: 
 // - CTRL-C and CTRL-N to display Current and Next tracks
 // - Splash screen
-// - Figure out how to output to 2 devices (phone jack and USB)
 // - Make the table row select colour configurable (default being whatever the LAF dictates)
 //   Normally I would leave this entirely up to the LAF, but with user being able to configure track colours it makes sense to make this configurable too...
 public class Panda extends JFrame {
@@ -123,8 +122,8 @@ public class Panda extends JFrame {
 	private JTextField searchField = new JTextField("Search...", 20);
 	private TableColumnModel tableColumnModel = new PandaTableColumnModel();
 
-	private JButton showCurrentButton = new JButton();
-	private JButton showNextButton = new JButton();
+	private JButton showCurrentTrackButton = new JButton();
+	private JButton showNextTrackButton = new JButton();
 	private JButton showNextCortinaButton = new JButton();
 	private JButton showNextTandaButton = new JButton();
 
@@ -914,24 +913,28 @@ public class Panda extends JFrame {
 //			controlBox2.add(lvbpBox);
 		}
 
-		showCurrentButton.setBackground(currentTrackColor);
-		showNextButton.setBackground(nextTrackColor);
+		showCurrentTrackButton.setBackground(currentTrackColor);
+		showNextTrackButton.setBackground(nextTrackColor);
 		showNextCortinaButton.setBackground(nextCortinaColor);
 		showNextTandaButton.setBackground(nextTandaColor);
-		showCurrentButton.setBorder(new EmptyBorder(8, 0, 8, 0)); // top, left, bottom, right
-		showNextButton.setBorder(new EmptyBorder(8, 0, 8, 0));
+		showCurrentTrackButton.setBorder(new EmptyBorder(8, 0, 8, 0)); // top, left, bottom, right
+		showNextTrackButton.setBorder(new EmptyBorder(8, 0, 8, 0));
 		showNextCortinaButton.setBorder(new EmptyBorder(8, 0, 8, 0));
 		showNextTandaButton.setBorder(new EmptyBorder(8, 0, 8, 0));
 		JPanel buttonPanel = new JPanel(new GridLayout(1, 3));
-		buttonPanel.add(showCurrentButton);
-		buttonPanel.add(showNextButton);
+		buttonPanel.add(showCurrentTrackButton);
+		buttonPanel.add(showNextTrackButton);
 		buttonPanel.add(showNextCortinaButton);
 		buttonPanel.add(showNextTandaButton);
+		showCurrentTrackButton.setEnabled(false);
+		showNextTrackButton.setEnabled(false);
+		showNextCortinaButton.setEnabled(false);
+		showNextTandaButton.setEnabled(false);
 
 		JPanel leftPanel = new JPanel(new BorderLayout());
 		JScrollPane treeScrollPane = new JScrollPane(tree);
 		leftPanel.add(treeScrollPane);
-//		leftPanel.add(showCurrentButton, BorderLayout.SOUTH);
+//		leftPanel.add(showCurrentTrackButton, BorderLayout.SOUTH);
 		leftPanel.add(buttonPanel, BorderLayout.SOUTH);
 
 		JPanel rightPanel = new JPanel(new BorderLayout());
@@ -1074,9 +1077,9 @@ System.out.println("*** SPACE");
 					nextTrackMenuItem.setEnabled(true);
 					nextCortinaMenuItem.setEnabled(true);
 					nextTandaMenuItem.setEnabled(true);
-					// But disable the "play next" and "play after" menu items if the clicked row represents either the current or next track
-					// TODO: Re-look at logic since adding new menu items...
-					if (displayPlaylist == currentTrackPlaylist && (row == currentTrackIndex || row == nextTrackIndex)) {
+					// But disable the menu items if the clicked row is the current track
+					if (displayPlaylist == currentTrackPlaylist && row == currentTrackIndex) {
+						playNowMenuItem.setEnabled(false);
 						nextTrackMenuItem.setEnabled(false);
 						nextCortinaMenuItem.setEnabled(false);
 						nextTandaMenuItem.setEnabled(false);
@@ -1102,6 +1105,7 @@ System.out.println("*** SPACE");
 				Player.stop();
 				int row = table.getSelectedRow();
 				currentTrackIndex = row;
+				// NOTE: We need to set next track index, as we will stop the current track so that the "next" track can play.
 				nextTrackIndex = row;
 				currentTrackPlaylist = displayPlaylist;
 				nextTrackPlaylist = displayPlaylist;
@@ -1120,6 +1124,7 @@ System.out.println("*** SPACE");
 				int row = table.getSelectedRow();
 				nextTrackIndex = row;
 				nextTrackPlaylist = displayPlaylist;
+				showNextTrackButton.setEnabled(true);
 				PandaTableModel model = (PandaTableModel) table.getModel();
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
@@ -1133,6 +1138,7 @@ System.out.println("*** SPACE");
 				int row = table.getSelectedRow();
 				nextCortinaIndex = row;
 				nextCortinaPlaylist = displayPlaylist;
+				showNextCortinaButton.setEnabled(true);
 				PandaTableModel model = (PandaTableModel) table.getModel();
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
@@ -1146,6 +1152,7 @@ System.out.println("*** SPACE");
 				int row = table.getSelectedRow();
 				nextTandaIndex = row;
 				nextTandaPlaylist = displayPlaylist;
+				showNextTandaButton.setEnabled(true);
 				PandaTableModel model = (PandaTableModel) table.getModel();
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
@@ -1154,12 +1161,12 @@ System.out.println("*** SPACE");
 				updateProjector();
 			}
 		});
-		showCurrentButton.addActionListener(new ActionListener() {
+		showCurrentTrackButton.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				showCurrentTrack();
 			}
 		});
-		showNextButton.addActionListener(new ActionListener() {
+		showNextTrackButton.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				showNextTrack();
 			}
@@ -1708,12 +1715,12 @@ System.out.println("*** SPACE");
 			Util.log(Level.INFO, "Starting play thread...");
 			// Start off in paused state
 			setPaused(true);
-			currentTrackIndex = 0;
 			while (true) {
 				// Wait until current track index is set...
 				while (currentTrackIndex < 0) {
 					Util.pause(1000);
 				}
+				showCurrentTrackButton.setEnabled(true);
 				// By default, the next track is the following unchecked track in the current playlist
 				nextTrackPlaylist = currentTrackPlaylist;
 				nextTrackIndex = findNextCheckedTrackIndex(currentTrackIndex, currentTrackPlaylist);
@@ -1732,16 +1739,19 @@ System.out.println("*** SPACE");
 						nextTrackIndex = nextTandaIndex;
 					}
 				}
+				showNextTrackButton.setEnabled(nextTrackIndex < 0 ? false : true);
 				if ((nextCortinaPlaylist == currentTrackPlaylist && nextCortinaIndex == currentTrackIndex)  || (nextCortinaPlaylist == nextTrackPlaylist && nextCortinaIndex == nextTrackIndex)) {
 					// The "next cortina" is now either the current or next track, so reset it
 					nextCortinaPlaylist = null;
 					nextCortinaIndex = -1;
+					showNextCortinaButton.setEnabled(false);
 				}
 				// TODO: Same for next tanda playlist and index?
 				if ((nextTandaPlaylist == currentTrackPlaylist && nextTandaIndex == currentTrackIndex)  || (nextTandaPlaylist == nextTrackPlaylist && nextTandaIndex == nextTrackIndex)) {
 					// The "next tanda" is now either the current or next track, so reset it
 					nextTandaPlaylist = null;
 					nextTandaIndex = -1;
+					showNextTandaButton.setEnabled(false);
 				}
 				// Current and next tracks must be highlighted in UI
 				SwingUtilities.invokeLater(new Runnable() {
@@ -1780,6 +1790,10 @@ System.out.println("*** SPACE");
 							nextTrackIndex = -1;
 							nextCortinaIndex = -1;
 							nextTandaIndex = -1;
+							showCurrentTrackButton.setEnabled(false);
+							showNextTrackButton.setEnabled(false);
+							showNextCortinaButton.setEnabled(false);
+							showNextTandaButton.setEnabled(false);
 							setPaused(true);
 							settingPosition = true;
 						}
@@ -1849,7 +1863,7 @@ System.out.println("*** SPACE");
 				panel.setBackground(backgroundSelectionColor);
 				label.setBackground(backgroundSelectionColor);
 			}
-			if (leaf) {
+			if (leaf && currentTrackIndex >= 0) {
 				setColor(name, nextTandaPlaylist, nextTandaColor);
 				setColor(name, nextCortinaPlaylist, nextCortinaColor);
 				setColor(name, nextTrackPlaylist, nextTrackColor);
@@ -2374,27 +2388,27 @@ class PresetComboBox extends JComboBox {
 
 interface Presets {
 	// Equalizer preset values                      1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18  19  20  21  22  23  24  25  26  27  28  29  30  31
-	static final int[] PRESETS_10_BASS_PLUS    = { 10,  8,  6,  4,  2,  0,  0,  0,  0,  0};
+	static final int[] PRESETS_10_BASS_PLUS    = {  7,  5,  3,  1,  0,  0,  0,  0,  0,  0};
 	static final int[] PRESETS_15_BASS_PLUS    = { 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0,  0,  0,  0,  0};
 	static final int[] PRESETS_25_BASS_PLUS    = { 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0};
 	static final int[] PRESETS_31_BASS_PLUS    = { 10, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0};
-	static final int[] PRESETS_10_BASS_MINUS   = {-10, -8, -6, -4, -2,  0,  0,  0,  0,  0};
+	static final int[] PRESETS_10_BASS_MINUS   = { -7, -5, -3, -1,  0,  0,  0,  0,  0,  0};
 	static final int[] PRESETS_15_BASS_MINUS   = {-10, -9, -8, -7, -6, -5, -4, -3, -2, -1,  0,  0,  0,  0,  0};
 	static final int[] PRESETS_25_BASS_MINUS   = {-10, -9, -8, -7, -6, -5, -4, -3, -2, -1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0};
 	static final int[] PRESETS_31_BASS_MINUS   = {-10,-10, -9, -8, -7, -6, -5, -4, -3, -2, -1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0};
-	static final int[] PRESETS_10_MID_PLUS     = {  0,  1,  4,  7, 10, 10,  7,  4,  1,  0};
+	static final int[] PRESETS_10_MID_PLUS     = {  0,  1,  3,  5,  7,  7,  5,  3,  1,  0};
 	static final int[] PRESETS_15_MID_PLUS     = {  0,  0,  2,  4,  6,  8,  9, 10,  9,  8,  6,  4,  2,  0,  0};
 	static final int[] PRESETS_25_MID_PLUS     = {  0,  0,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0,  0,  0};
 	static final int[] PRESETS_31_MID_PLUS     = {  0,  0,  0,  0,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 10, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0,  0,  0,  0,  0};
-	static final int[] PRESETS_10_MID_MINUS    = {  0, -1, -4, -7,-10,-10, -7, -4, -1,  0};
+	static final int[] PRESETS_10_MID_MINUS    = {  0, -1, -3, -5, -7, -7, -5, -3, -1,  0};
 	static final int[] PRESETS_15_MID_MINUS    = {  0,  0, -2, -4, -6, -8, -9,-10, -9, -8, -6, -4, -2,  0,  0};
 	static final int[] PRESETS_25_MID_MINUS    = {  0,  0,  0, -1, -2, -3, -4, -5, -6, -7, -8, -9,-10, -9, -8, -7, -6, -5, -4, -3, -2, -1,  0,  0,  0};
 	static final int[] PRESETS_31_MID_MINUS    = {  0,  0,  0,  0,  0, -1, -2, -3, -4, -5, -6, -7, -8, -9,-10,-10,-10, -9, -8, -7, -6, -5, -4, -3, -2, -1,  0,  0,  0,  0,  0};
-	static final int[] PRESETS_10_TREBLE_PLUS  = {  0,  0,  0,  0,  0,  2,  4,  6,  8, 10};
+	static final int[] PRESETS_10_TREBLE_PLUS  = {  0,  0,  0,  0,  0,  0,  1,  3,  5,  7};
 	static final int[] PRESETS_15_TREBLE_PLUS  = {  0,  0,  0,  0,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10};
 	static final int[] PRESETS_25_TREBLE_PLUS  = {  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10};
 	static final int[] PRESETS_31_TREBLE_PLUS  = {  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 10};
-	static final int[] PRESETS_10_TREBLE_MINUS = {  0,  0,  0,  0,  0, -2, -4, -6, -8,-10};
+	static final int[] PRESETS_10_TREBLE_MINUS = {  0,  0,  0,  0,  0,  0, -1, -3, -5, -7};
 	static final int[] PRESETS_15_TREBLE_MINUS = {  0,  0,  0,  0,  0, -1, -2, -3, -4, -5, -6, -7, -8, -9,-10};
 	static final int[] PRESETS_25_TREBLE_MINUS = {  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1, -2, -3, -4, -5, -6, -7, -8, -9,-10};
 	static final int[] PRESETS_31_TREBLE_MINUS = {  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1, -2, -3, -4, -5, -6, -7, -8, -9,-10,-10};
