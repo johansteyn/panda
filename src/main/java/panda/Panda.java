@@ -59,9 +59,10 @@ public class Panda extends JFrame {
 	private static List<Image> iconImages = new ArrayList<Image>();
 
 	// Track colors
-	private static Color currentColor = Color.RED;
-	private static Color nextColor = Color.GREEN;
-	private static Color afterColor = Color.YELLOW;
+	private static Color currentTrackColor = Color.RED;
+	private static Color nextTrackColor = Color.GREEN;
+	private static Color nextCortinaColor = Color.YELLOW;
+	private static Color nextTandaColor = Color.BLUE;
 	private static Map<String,Color> genreColors = new HashMap<String,Color>();
 
 	private static int defaultModifier; // The platform-specific key modifier, eg: CTRL on Linux/Windows or CMD on Mac
@@ -72,15 +73,17 @@ public class Panda extends JFrame {
 	private Map<String, Track> trackMap = new HashMap<String, Track>();  // A map of filename to Track instances
 	private Map<String, List<Track>> playlistMap = new HashMap<String, List<Track>>();  // A map of playlist name to list of Track instances
 	private List<String> playlists = new ArrayList<String>(); // An list of playlist names, in the order that they appear in the playlist file, with main Music playlist at the head
-	private List<Track> currentPlaylist = new ArrayList<Track>(); // The currently playing playlist
 	private List<Track> displayPlaylist; // The playlist that is selected in the tree (and displayed in the table)
-	private List<Track> nextPlaylist = currentPlaylist; // The playlist that the next track belongs to
-	private List<Track> afterPlaylist; // The playlist that the track after the current tanda belongs to
+	private List<Track> currentTrackPlaylist = new ArrayList<Track>();
+	private List<Track> nextTrackPlaylist = currentTrackPlaylist;
+	private List<Track> nextCortinaPlaylist;
+	private List<Track> nextTandaPlaylist;
 	private List<Track> emptyPlaylist = new ArrayList<Track>(); 
 	// NOTE: Use track indexes rather than track instances, since tracks can appear more than once in a playlist
 	private int currentTrackIndex = -1;
 	private int nextTrackIndex = -1; 
-	private int afterTrackIndex = -1; 
+	private int nextCortinaIndex = -1; 
+	private int nextTandaIndex = -1; 
 	private PlayThread playThread = new PlayThread();
 	private boolean settingPosition; // Flag to indicate that the position is being set during play, ie. not by the user dragging the slider.
 	private int prevPosition = -1; // The last position that the slider was set to by the user
@@ -93,8 +96,9 @@ public class Panda extends JFrame {
 	private JCheckBoxMenuItem projectorMenuItem = new JCheckBoxMenuItem("Projector", false);
 	private JMenuItem quitMenuItem = new JMenuItem("Quit");
 	private JMenuItem playNowMenuItem = new JMenuItem("Play now");
-	private JMenuItem playNextMenuItem = new JMenuItem("Play next");
-	private JMenuItem playAfterMenuItem = new JMenuItem("Play after tanda");
+	private JMenuItem nextTrackMenuItem = new JMenuItem("Next Track");
+	private JMenuItem nextCortinaMenuItem = new JMenuItem("Next Cortina");
+	private JMenuItem nextTandaMenuItem = new JMenuItem("Next Tanda");
 	private JMenuItem selectAllMenuItem = new JMenuItem("Select all");
 	private JMenuItem selectNoneMenuItem = new JMenuItem("Select none");
 
@@ -121,7 +125,8 @@ public class Panda extends JFrame {
 
 	private JButton showCurrentButton = new JButton();
 	private JButton showNextButton = new JButton();
-	private JButton showAfterButton = new JButton();
+	private JButton showNextCortinaButton = new JButton();
+	private JButton showNextTandaButton = new JButton();
 
 	private Projector projector;
 
@@ -184,9 +189,10 @@ public class Panda extends JFrame {
 		}
 		WAIT = wait;
 
-		currentColor = getColor("panda.colour.track.current", currentColor);
-		nextColor = getColor("panda.colour.track.next", nextColor);
-		afterColor = getColor("panda.colour.track.after", afterColor);
+		currentTrackColor = getColor("panda.colour.currentTrack", currentTrackColor);
+		nextTrackColor = getColor("panda.colour.nextTrack", nextTrackColor);
+		nextCortinaColor = getColor("panda.colour.nextCortina", nextCortinaColor);
+		nextTandaColor = getColor("panda.colour.nextTanda", nextTandaColor);
 		Properties properties = System.getProperties();
 		Set<String> keys = properties.stringPropertyNames();
 		Iterator iterator = keys.iterator();
@@ -281,7 +287,7 @@ public class Panda extends JFrame {
 		loadTracks();
 		readTags();
 		// Note: Need to sort main playlist after loading the tracks AND reading the tags.
-		Collections.sort(currentPlaylist);
+		Collections.sort(currentTrackPlaylist);
 		readPlaylists();
 		// Not sure if I need to do this on event dispatch thread - better safe than sorry...
 		SwingUtilities.invokeLater(new Runnable() {
@@ -393,10 +399,10 @@ public class Panda extends JFrame {
 				}
 			});
 			trackMap.put(filename, track);
-			currentPlaylist.add(track);
+			currentTrackPlaylist.add(track);
 			// TODO: For file formats that support tagging (MP3, FLAC, etc.) we need to read the tag info here...
 		}
-		int number = currentPlaylist.size();
+		int number = currentTrackPlaylist.size();
 		Util.stopTimer(start, "Load of " + number + " tracks");
 	}
 
@@ -465,7 +471,7 @@ public class Panda extends JFrame {
 	private void readPlaylists() throws IOException {
 		Util.log(Level.INFO, "Reading playlists...");
 		// First add the main playlist of all tracks
-		playlistMap.put("Music", currentPlaylist);
+		playlistMap.put("Music", currentTrackPlaylist);
 		playlists.add("Music");
 		long start = Util.startTimer();
 		String filename = Util.PANDA_HOME + "panda.playlists";
@@ -574,7 +580,7 @@ public class Panda extends JFrame {
 		tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
 		tree.setCellRenderer(new PandaTreeCellRenderer());
 
-		displayPlaylist = currentPlaylist;
+		displayPlaylist = currentTrackPlaylist;
 		table = new PandaTable(new PandaTableModel(displayPlaylist), tableColumnModel);
 		table.setFillsViewportHeight(true); // Makes it easier to make the table a target for drag-and-drop
 		table.setBackground(Color.white);
@@ -803,8 +809,9 @@ public class Panda extends JFrame {
 		logoPopupMenu.addSeparator();
 		logoPopupMenu.add(quitMenuItem);
 		tablePopupMenu.add(playNowMenuItem);
-		tablePopupMenu.add(playNextMenuItem);
-		tablePopupMenu.add(playAfterMenuItem);
+		tablePopupMenu.add(nextTrackMenuItem);
+		tablePopupMenu.add(nextCortinaMenuItem);
+		tablePopupMenu.add(nextTandaMenuItem);
 		tablePopupMenu.addSeparator();
 		tablePopupMenu.add(selectAllMenuItem);
 		tablePopupMenu.add(selectNoneMenuItem);
@@ -907,16 +914,19 @@ public class Panda extends JFrame {
 //			controlBox2.add(lvbpBox);
 		}
 
-		showCurrentButton.setBackground(currentColor);
-		showNextButton.setBackground(nextColor);
-		showAfterButton.setBackground(afterColor);
+		showCurrentButton.setBackground(currentTrackColor);
+		showNextButton.setBackground(nextTrackColor);
+		showNextCortinaButton.setBackground(nextCortinaColor);
+		showNextTandaButton.setBackground(nextTandaColor);
 		showCurrentButton.setBorder(new EmptyBorder(8, 0, 8, 0)); // top, left, bottom, right
 		showNextButton.setBorder(new EmptyBorder(8, 0, 8, 0));
-		showAfterButton.setBorder(new EmptyBorder(8, 0, 8, 0));
+		showNextCortinaButton.setBorder(new EmptyBorder(8, 0, 8, 0));
+		showNextTandaButton.setBorder(new EmptyBorder(8, 0, 8, 0));
 		JPanel buttonPanel = new JPanel(new GridLayout(1, 3));
 		buttonPanel.add(showCurrentButton);
 		buttonPanel.add(showNextButton);
-		buttonPanel.add(showAfterButton);
+		buttonPanel.add(showNextCortinaButton);
+		buttonPanel.add(showNextTandaButton);
 
 		JPanel leftPanel = new JPanel(new BorderLayout());
 		JScrollPane treeScrollPane = new JScrollPane(tree);
@@ -1005,10 +1015,6 @@ System.out.println("*** CTRL-C");
 System.out.println("*** CTRL-N");
 							Util.log(Level.FINE, "dispatchKeyEvent: CTRL-N");
 							showNextTrack();
-						} else if (keyCode == KeyEvent.VK_A) {
-System.out.println("*** CTRL-A");
-							Util.log(Level.FINE, "dispatchKeyEvent: CTRL-A");
-							showAfterTrack();
 						}
 					}
 					if (keyCode == KeyEvent.VK_SPACE) {
@@ -1057,19 +1063,23 @@ System.out.println("*** SPACE");
 					}
 				}
 				playNowMenuItem.setEnabled(false);
-				playNextMenuItem.setEnabled(false);
-				playAfterMenuItem.setEnabled(false);
+				nextTrackMenuItem.setEnabled(false);
+				nextCortinaMenuItem.setEnabled(false);
+				nextTandaMenuItem.setEnabled(false);
 				// Only enable the play menu items if:
 				// - Exactly one row was selected
 				// - The clicked row is the selected row
 				if (table.getSelectedRowCount() == 1 && clickedSelectedRow) {
 					playNowMenuItem.setEnabled(true);
-					playNextMenuItem.setEnabled(true);
-					playAfterMenuItem.setEnabled(true);
+					nextTrackMenuItem.setEnabled(true);
+					nextCortinaMenuItem.setEnabled(true);
+					nextTandaMenuItem.setEnabled(true);
 					// But disable the "play next" and "play after" menu items if the clicked row represents either the current or next track
-					if (displayPlaylist == currentPlaylist && (row == currentTrackIndex || row == nextTrackIndex)) {
-						playNextMenuItem.setEnabled(false);
-						playAfterMenuItem.setEnabled(false);
+					// TODO: Re-look at logic since adding new menu items...
+					if (displayPlaylist == currentTrackPlaylist && (row == currentTrackIndex || row == nextTrackIndex)) {
+						nextTrackMenuItem.setEnabled(false);
+						nextCortinaMenuItem.setEnabled(false);
+						nextTandaMenuItem.setEnabled(false);
 					}
 				}
 				tablePopupMenu.show(table, e.getX(), e.getY());
@@ -1093,8 +1103,8 @@ System.out.println("*** SPACE");
 				int row = table.getSelectedRow();
 				currentTrackIndex = row;
 				nextTrackIndex = row;
-				currentPlaylist = displayPlaylist;
-				nextPlaylist = displayPlaylist;
+				currentTrackPlaylist = displayPlaylist;
+				nextTrackPlaylist = displayPlaylist;
 				PandaTableModel model = (PandaTableModel) table.getModel();
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
@@ -1105,11 +1115,11 @@ System.out.println("*** SPACE");
 				playThread.next();
 			}
 		});
-		playNextMenuItem.addActionListener(new ActionListener() {
+		nextTrackMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				int row = table.getSelectedRow();
 				nextTrackIndex = row;
-				nextPlaylist = displayPlaylist;
+				nextTrackPlaylist = displayPlaylist;
 				PandaTableModel model = (PandaTableModel) table.getModel();
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
@@ -1118,11 +1128,24 @@ System.out.println("*** SPACE");
 				updateProjector();
 			}
 		});
-		playAfterMenuItem.addActionListener(new ActionListener() {
+		nextCortinaMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				int row = table.getSelectedRow();
-				afterTrackIndex = row;
-				afterPlaylist = displayPlaylist;
+				nextCortinaIndex = row;
+				nextCortinaPlaylist = displayPlaylist;
+				PandaTableModel model = (PandaTableModel) table.getModel();
+				model.setValueAt(new Boolean(true), row, 0);
+				table.clearSelection();
+				playButton.requestFocusInWindow();
+				refresh();
+				updateProjector();
+			}
+		});
+		nextTandaMenuItem.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				int row = table.getSelectedRow();
+				nextTandaIndex = row;
+				nextTandaPlaylist = displayPlaylist;
 				PandaTableModel model = (PandaTableModel) table.getModel();
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
@@ -1141,9 +1164,14 @@ System.out.println("*** SPACE");
 				showNextTrack();
 			}
 		});
-		showAfterButton.addActionListener(new ActionListener() {
+		showNextCortinaButton.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				showAfterTrack();
+				showNextCortina();
+			}
+		});
+		showNextTandaButton.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				showNextTanda();
 			}
 		});
 		selectAllMenuItem.addActionListener(new ActionListener() {
@@ -1185,7 +1213,7 @@ System.out.println("*** SPACE");
 					return;
 				}
 				if (currentTrackIndex >= 0) {
-					Track track = currentPlaylist.get(currentTrackIndex);
+					Track track = currentTrackPlaylist.get(currentTrackIndex);
 					Player player = track.getPlayer();
 					int position = player.getPosition();
 					if (newPosition != position) {
@@ -1369,8 +1397,8 @@ System.out.println("*** SPACE");
 	}
 
 	private void showCurrentTrack() {
-		if (displayPlaylist != currentPlaylist) {
-			displayPlaylist = currentPlaylist;
+		if (displayPlaylist != currentTrackPlaylist) {
+			displayPlaylist = currentTrackPlaylist;
 			table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
 			refresh();
 		}
@@ -1378,23 +1406,33 @@ System.out.println("*** SPACE");
 	}
 
 	private void showNextTrack() {
-		if (nextPlaylist == null || nextTrackIndex < 0) {
+		if (nextTrackPlaylist == null || nextTrackIndex < 0) {
 			return;
 		}
-		displayPlaylist = nextPlaylist;
+		displayPlaylist = nextTrackPlaylist;
 		table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
 		refresh();
 		displayTrack(nextTrackIndex);
 	}
 
-	private void showAfterTrack() {
-		if (afterPlaylist == null || afterTrackIndex < 0) {
+	private void showNextCortina() {
+		if (nextCortinaPlaylist == null || nextCortinaIndex < 0) {
 			return;
 		}
-		displayPlaylist = afterPlaylist;
+		displayPlaylist = nextCortinaPlaylist;
 		table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
 		refresh();
-		displayTrack(afterTrackIndex);
+		displayTrack(nextCortinaIndex);
+	}
+
+	private void showNextTanda() {
+		if (nextTandaPlaylist == null || nextTandaIndex < 0) {
+			return;
+		}
+		displayPlaylist = nextTandaPlaylist;
+		table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
+		refresh();
+		displayTrack(nextTandaIndex);
 	}
 
 	private void displayTrack(int index) {
@@ -1473,15 +1511,32 @@ System.out.println("*** SPACE");
 		if (!genre.equals(previousGenre)) {
 			return false;
 		}
-		if (nextPlaylist == null || nextTrackIndex < 0) {
+		if (nextTrackPlaylist == null || nextTrackIndex < 0) {
 			return true;
 		}
-		Track nextTrack = nextPlaylist.get(nextTrackIndex);
+		Track nextTrack = nextTrackPlaylist.get(nextTrackIndex);
 		String nextGenre = nextTrack.getTag("genre");
 		if (!genre.equals(nextGenre)) {
 			return true;
 		}
 		return false;
+	}
+
+
+	// Returns true if the specified track does not have a genre that is one of the "projector" genres.
+	private boolean isCortina(int index, List<Track> playlist) {
+		if (index < 0 || index >= playlist.size()) {
+			return true;
+		}
+		Track track = playlist.get(index);
+		String genre = track.getTag("genre");
+		if (genre == null) {
+			return true;
+		}
+		if (Util.projectorGenres.contains(genre)) {
+			return false;
+		}
+		return true;
 	}
 
 	// Returns the first checked track that precedes the specified index in the *current* playlist
@@ -1492,7 +1547,7 @@ System.out.println("*** SPACE");
 		}
 		int prev = index;
 		for (int i = index - 1; i >= 0; i--) {
-			Track track = currentPlaylist.get(i);
+			Track track = currentTrackPlaylist.get(i);
 			if (track.isChecked()) {
 				prev = i;
 				break;
@@ -1511,7 +1566,7 @@ System.out.println("*** SPACE");
 			return;
 		}
 		boolean useDefaults = true;
-		Track track = currentPlaylist.get(currentTrackIndex);
+		Track track = currentTrackPlaylist.get(currentTrackIndex);
 		String genre = track.getTag("genre");
 		if (genre != null && Util.projectorGenres.contains(genre)) {
 			Player player = track.getPlayer();
@@ -1554,8 +1609,8 @@ System.out.println("*** SPACE");
 		}
 		boolean cortinaFound = false;
 		String currentGenre = "";
-		if (currentPlaylist != null && currentTrackIndex >= 0) {
-			Track track = currentPlaylist.get(currentTrackIndex);
+		if (currentTrackPlaylist != null && currentTrackIndex >= 0) {
+			Track track = currentTrackPlaylist.get(currentTrackIndex);
 			String g = track.getTag("genre");
 			if (g != null) {
 				currentGenre = g;
@@ -1564,9 +1619,9 @@ System.out.println("*** SPACE");
 		if (!Util.projectorGenres.contains(currentGenre)) {
 			cortinaFound = true;
 		}
-		List<Track> playlist = nextPlaylist;
+		List<Track> playlist = nextTrackPlaylist;
 		if (playlist == null) {
-			playlist = currentPlaylist;
+			playlist = currentTrackPlaylist;
 			if (playlist == null) {
 				return string;
 			}
@@ -1660,20 +1715,33 @@ System.out.println("*** SPACE");
 					Util.pause(1000);
 				}
 				// By default, the next track is the following unchecked track in the current playlist
-				nextPlaylist = currentPlaylist;
-				nextTrackIndex = findNextCheckedTrackIndex(currentTrackIndex, currentPlaylist);
+				nextTrackPlaylist = currentTrackPlaylist;
+				nextTrackIndex = findNextCheckedTrackIndex(currentTrackIndex, currentTrackPlaylist);
 				// Unless the current track is the last track in the tanda,
-				// and an "after" track has been specified, then it becomes the next track
-				if (isLastTrackInTanda(currentTrackIndex, currentPlaylist)) {
-					if (afterPlaylist != null && afterTrackIndex >= 0) {
-						nextPlaylist = afterPlaylist;
-						nextTrackIndex = afterTrackIndex;
+				// and a "next cortina" has been specified, then it becomes the next track
+				if (isLastTrackInTanda(currentTrackIndex, currentTrackPlaylist)) {
+					if (nextCortinaPlaylist != null && nextCortinaIndex >= 0) {
+						nextTrackPlaylist = nextCortinaPlaylist;
+						nextTrackIndex = nextCortinaIndex;
 					}
 				}
-				if ((afterPlaylist == currentPlaylist && afterTrackIndex == currentTrackIndex)  || (afterPlaylist == nextPlaylist && afterTrackIndex == nextTrackIndex)) {
-					// The "after" track is now either the current or next track, so reset it
-					afterPlaylist = null;
-					afterTrackIndex = -1;
+				// Or if the current track is a cortina and a "next tanda" has been specified, then it becomes the next track
+				if (isCortina(currentTrackIndex, currentTrackPlaylist)) {
+					if (nextTandaPlaylist != null && nextTandaIndex >= 0) {
+						nextTrackPlaylist = nextTandaPlaylist;
+						nextTrackIndex = nextTandaIndex;
+					}
+				}
+				if ((nextCortinaPlaylist == currentTrackPlaylist && nextCortinaIndex == currentTrackIndex)  || (nextCortinaPlaylist == nextTrackPlaylist && nextCortinaIndex == nextTrackIndex)) {
+					// The "next cortina" is now either the current or next track, so reset it
+					nextCortinaPlaylist = null;
+					nextCortinaIndex = -1;
+				}
+				// TODO: Same for next tanda playlist and index?
+				if ((nextTandaPlaylist == currentTrackPlaylist && nextTandaIndex == currentTrackIndex)  || (nextTandaPlaylist == nextTrackPlaylist && nextTandaIndex == nextTrackIndex)) {
+					// The "next tanda" is now either the current or next track, so reset it
+					nextTandaPlaylist = null;
+					nextTandaIndex = -1;
 				}
 				// Current and next tracks must be highlighted in UI
 				SwingUtilities.invokeLater(new Runnable() {
@@ -1681,7 +1749,7 @@ System.out.println("*** SPACE");
 						refresh();
 					}
 				});
-				Track track = currentPlaylist.get(currentTrackIndex);
+				Track track = currentTrackPlaylist.get(currentTrackIndex);
 				final Player player = track.getPlayer();
 				updateProjector();
 				try {
@@ -1693,19 +1761,25 @@ System.out.println("*** SPACE");
 						Util.pause(1000 * WAIT);
 					}
 					if (proceed) {
-						if (nextTrackIndex >= 0 && nextTrackIndex < nextPlaylist.size()) {
-							currentPlaylist = nextPlaylist;
+						if (nextTrackIndex >= 0 && nextTrackIndex < nextTrackPlaylist.size()) {
+							currentTrackPlaylist = nextTrackPlaylist;
 							currentTrackIndex = nextTrackIndex;
-						} else if (afterTrackIndex >= 0 && afterTrackIndex < afterPlaylist.size()) {
-							currentPlaylist = afterPlaylist;
-							currentTrackIndex = afterTrackIndex;
-							afterPlaylist = null;
-							afterTrackIndex = -1;
+						} else if (nextCortinaIndex >= 0 && nextCortinaIndex < nextCortinaPlaylist.size()) {
+							currentTrackPlaylist = nextCortinaPlaylist;
+							currentTrackIndex = nextCortinaIndex;
+							nextCortinaPlaylist = null;
+							nextCortinaIndex = -1;
+						} else if (nextTandaIndex >= 0 && nextTandaIndex < nextTandaPlaylist.size()) {
+							currentTrackPlaylist = nextTandaPlaylist;
+							currentTrackIndex = nextTandaIndex;
+							nextTandaPlaylist = null;
+							nextTandaIndex = -1;
 						} else {
 							// Reached end of playlist, so restore state to how it was at the start
 							currentTrackIndex = -1;
 							nextTrackIndex = -1;
-							afterTrackIndex = -1;
+							nextCortinaIndex = -1;
+							nextTandaIndex = -1;
 							setPaused(true);
 							settingPosition = true;
 						}
@@ -1714,17 +1788,17 @@ System.out.println("*** SPACE");
 					}
 					refresh();
 				} catch (IOException ioe) {
-					Util.log(Level.SEVERE, "Error while playing track " + currentPlaylist.get(currentTrackIndex) + ": " + ioe);
+					Util.log(Level.SEVERE, "Error while playing track " + currentTrackPlaylist.get(currentTrackIndex) + ": " + ioe);
 				} catch (UnsupportedAudioFileException uafe) {
-					Util.log(Level.SEVERE, "Error while playing track " + currentPlaylist.get(currentTrackIndex) + ": " + uafe);
+					Util.log(Level.SEVERE, "Error while playing track " + currentTrackPlaylist.get(currentTrackIndex) + ": " + uafe);
 				} catch (LineUnavailableException lue) {
-					Util.log(Level.SEVERE, "Error while playing track " + currentPlaylist.get(currentTrackIndex) + ": " + lue);
+					Util.log(Level.SEVERE, "Error while playing track " + currentTrackPlaylist.get(currentTrackIndex) + ": " + lue);
 				}
 			}
 		}
 
 		synchronized void prev() {
-			Track track = currentPlaylist.get(currentTrackIndex);
+			Track track = currentTrackPlaylist.get(currentTrackIndex);
 			if (track != null) {
 				Player player = track.getPlayer();
 				int position = player.getPosition();
@@ -1744,7 +1818,7 @@ System.out.println("*** SPACE");
 			settingPosition = true;
 			// Not sure if I want this...
 			// iTunes always changes the display to show the track when it starts playing,
-			// but i fnd it annoying when it does that while I'm busy.
+			// but I find it annoying when it does that while I'm busy.
 			//showNextTrack();
 		}
 	}
@@ -1775,9 +1849,12 @@ System.out.println("*** SPACE");
 				panel.setBackground(backgroundSelectionColor);
 				label.setBackground(backgroundSelectionColor);
 			}
-			setColor(name, afterPlaylist, afterColor);
-			setColor(name, nextPlaylist, nextColor);
-			setColor(name, currentPlaylist, currentColor);
+			if (leaf) {
+				setColor(name, nextTandaPlaylist, nextTandaColor);
+				setColor(name, nextCortinaPlaylist, nextCortinaColor);
+				setColor(name, nextTrackPlaylist, nextTrackColor);
+				setColor(name, currentTrackPlaylist, currentTrackColor);
+			}
 			Util.setTextColor(label);
 			panel.setEnabled(tree.isEnabled());
 			return panel;
@@ -1820,19 +1897,24 @@ System.out.println("*** SPACE");
 			if (genreColors.containsKey(genre)) {
 				color = genreColors.get(genre);
 			}
-			if (displayPlaylist == currentPlaylist) {
-				if (modelRow == Panda.this.currentTrackIndex) {
-					color = currentColor;
+			if (displayPlaylist == nextTandaPlaylist) {
+				if (modelRow == Panda.this.nextTandaIndex) {
+					color = nextTandaColor;
 				}
 			}
-			if (displayPlaylist == nextPlaylist) {
+			if (displayPlaylist == nextCortinaPlaylist) {
+				if (modelRow == Panda.this.nextCortinaIndex) {
+					color = nextCortinaColor;
+				}
+			}
+			if (displayPlaylist == nextTrackPlaylist) {
 				if (modelRow == Panda.this.nextTrackIndex) {
-					color = nextColor;
+					color = nextTrackColor;
 				}
 			}
-			if (displayPlaylist == afterPlaylist) {
-				if (modelRow == Panda.this.afterTrackIndex) {
-					color = afterColor;
+			if (displayPlaylist == currentTrackPlaylist) {
+				if (modelRow == Panda.this.currentTrackIndex) {
+					color = currentTrackColor;
 				}
 			}
 			component.setBackground(color);
@@ -1953,19 +2035,24 @@ System.out.println("*** SPACE");
 				track.setChecked(b);
 				if (!b) {
 					// User unchecked a track
-					if (displayPlaylist == nextPlaylist && row == nextTrackIndex) {
+					if (displayPlaylist == nextTrackPlaylist && row == nextTrackIndex) {
 						// It is the next track, so find another next track (if any)
-						nextTrackIndex = findNextCheckedTrackIndex(nextTrackIndex, nextPlaylist);
+						nextTrackIndex = findNextCheckedTrackIndex(nextTrackIndex, nextTrackPlaylist);
 						if (nextTrackIndex < 0) {
 							// No more tracks in the "next" playlist, so find one in the current playlist
-							nextPlaylist = currentPlaylist;
-							nextTrackIndex = findNextCheckedTrackIndex(currentTrackIndex, currentPlaylist);
+							nextTrackPlaylist = currentTrackPlaylist;
+							nextTrackIndex = findNextCheckedTrackIndex(currentTrackIndex, currentTrackPlaylist);
 						}
 					}
-					if (displayPlaylist == afterPlaylist && row == afterTrackIndex) {
-						// It is the "after" track, so reset it
-						afterPlaylist = null;
-						afterTrackIndex = -1;
+					if (displayPlaylist == nextCortinaPlaylist && row == nextCortinaIndex) {
+						// It is the "next cortina", so reset it
+						nextCortinaPlaylist = null;
+						nextCortinaIndex = -1;
+					}
+					if (displayPlaylist == nextTandaPlaylist && row == nextTandaIndex) {
+						// It is the "next tanda" track, so reset it
+						nextTandaPlaylist = null;
+						nextTandaIndex = -1;
 					}
 				} else {
 					// User checked a track - if it occurs after the current track
