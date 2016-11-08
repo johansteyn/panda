@@ -50,7 +50,7 @@ import javax.swing.tree.*;
 // - Make the table row select colour configurable (default being whatever the LAF dictates)
 //   Normally I would leave this entirely up to the LAF, but with user being able to configure track colours it makes sense to make this configurable too...
 public class Panda extends JFrame {
-	public static final String MUSIC_DIR;  // Absolute path, ending with a file separator
+	public static final String TRACKS_DIR;  // Absolute path, ending with a file separator
 	public static final int BANDS;
 	private static final boolean FULLSCREEN;
 	public static final int WAIT;
@@ -71,7 +71,7 @@ public class Panda extends JFrame {
 	private List<String> filenames = new ArrayList<String>();
 	private Map<String, Track> trackMap = new HashMap<String, Track>();  // A map of filename to Track instances
 	private Map<String, List<Track>> playlistMap = new HashMap<String, List<Track>>();  // A map of playlist name to list of Track instances
-	private List<String> playlists = new ArrayList<String>(); // An list of playlist names, in the order that they appear in the playlist file, with main Music playlist at the head
+	private List<String> playlists = new ArrayList<String>(); // An list of playlist names, in the order that they appear in the playlist file, with main "Tracks" playlist at the head
 	private List<Track> displayPlaylist; // The playlist that is selected in the tree (and displayed in the table)
 	private List<Track> currentTrackPlaylist = new ArrayList<Track>();
 	private List<Track> nextTrackPlaylist = currentTrackPlaylist;
@@ -133,23 +133,23 @@ public class Panda extends JFrame {
 		// Ensure properties are loaded first by referencing Util class...
 		Util.log(Level.INFO, "Initializing Panda class...");
 
-		String dirname = System.getProperty("panda.music.directory");
+		String dirname = System.getProperty("panda.tracks.directory");
 		if (dirname == null) {
-			// Not configured, so use PANDA_HOME/music
-			dirname = Util.PANDA_HOME + "music";
+			// Not configured, so use default
+			dirname = Util.PANDA_HOME + "tracks";
 		}
-		// Ensure configured/default music directory exists
+		// Ensure configured/default directory exists
 		File dir = new File(dirname);
 		if (!dir.exists()) {
-			Util.log(Level.SEVERE, "Music directory not found: " + dirname);
+			Util.log(Level.SEVERE, "Tracks directory not found: " + dirname);
 			System.exit(1);
 		}
 		dirname = dir.getAbsolutePath();
 		if (dirname.charAt(dirname.length() - 1) != File.separatorChar) {
 			dirname += File.separator;
 		}
-		MUSIC_DIR = dirname;
-		Util.log(Level.INFO, "Scanning music directory: " + MUSIC_DIR);
+		TRACKS_DIR = dirname;
+		Util.log(Level.INFO, "Scanning tracks directory: " + TRACKS_DIR);
 
 		String fullscreen = System.getProperty("panda.gui.fullscreen");
 		if (fullscreen != null && fullscreen.equals("true")) {
@@ -299,18 +299,18 @@ public class Panda extends JFrame {
 		projector = new Projector(this);
 	}
 	
-	// Kicks off scan of music directory
+	// Kicks off scan of tracks directory
 	private void scan() {
 		long start = Util.startTimer();
-		scanDir(new File(MUSIC_DIR));
+		scanDir(new File(TRACKS_DIR));
 		StringBuffer sb = new StringBuffer();
 		for (String filename: filenames) {
 			sb.append(filename);
 			sb.append("\n");
 		}
 		int number = filenames.size();
-		Util.log(Level.FINE, "Found music files:\n" + sb);
-		Util.stopTimer(start, "Scan of " + number + " music files");
+		Util.log(Level.FINE, "Found track files:\n" + sb);
+		Util.stopTimer(start, "Scan of " + number + " track files");
 	}
 
 	// Recursive method
@@ -333,7 +333,7 @@ public class Panda extends JFrame {
 				continue;
 			}
 			String filename = file.getAbsolutePath();
-			filename = filename.substring(MUSIC_DIR.length());
+			filename = filename.substring(TRACKS_DIR.length());
 			if (filename.endsWith(".wav")) {
 				filenames.add(filename);
 			}
@@ -342,11 +342,11 @@ public class Panda extends JFrame {
 
 	// Populates the main playlist of tracks, creating a new Track instance for every file found during scan
 	private void loadTracks() throws IOException, UnsupportedAudioFileException {
-		Util.log(Level.INFO, "Loading music files...");
+		Util.log(Level.INFO, "Loading track files...");
 		long start = Util.startTimer();
 		for (String filename: filenames) {
 			Track track = new Track(filename);
-			track.setTitle(filename); // By default, each track's title is the filename (minus the music directory name)
+			track.setTitle(filename); // By default, each track's title is the filename (minus the tracks directory name)
 			Player player = track.getPlayer();
 			player.addPlayerListener(new PlayerListener() {
 				public void started(final Player player) {
@@ -470,8 +470,8 @@ public class Panda extends JFrame {
 	private void readPlaylists() throws IOException {
 		Util.log(Level.INFO, "Reading playlists...");
 		// First add the main playlist of all tracks
-		playlistMap.put("Music", currentTrackPlaylist);
-		playlists.add("Music");
+		playlistMap.put("Tracks", currentTrackPlaylist);
+		playlists.add("Tracks");
 		long start = Util.startTimer();
 		String filename = Util.PANDA_HOME + "panda.playlists";
 		BufferedReader br = null;

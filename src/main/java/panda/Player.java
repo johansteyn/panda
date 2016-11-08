@@ -82,8 +82,8 @@ public class Player {
 		String filename = track.getFilename();
 		Util.log(Level.FINE, "Getting audio input stream for file: " + filename);
 //		ais = AudioSystem.getAudioInputStream(new File(filename));
-		//ais = AudioSystem.getAudioInputStream(new File(Panda.MUSIC_DIR + filename));
-		File file = new File(Panda.MUSIC_DIR + filename);
+		//ais = AudioSystem.getAudioInputStream(new File(Panda.TRACKS_DIR + filename));
+		File file = new File(Panda.TRACKS_DIR + filename);
 		Util.log(Level.FINE, "Getting audio input stream for file: " + file);
 		ais = AudioSystem.getAudioInputStream(file);
 
@@ -123,7 +123,7 @@ public class Player {
 		player = this;
 		String filename = track.getFilename();
 		Util.log(Level.INFO, "------------ Playing file " + filename + " ------------");
-		filename = Panda.MUSIC_DIR + filename;
+		filename = Panda.TRACKS_DIR + filename;
 		// Note, when a track is played, it is by definition NOT stopped and at position 0.
 		// However, it may be paused, in which case it will get eberything ready to play and then wait until it is unpaused before continuing
 		stopped = false;
