@@ -127,6 +127,7 @@ public class Panda extends JFrame {
 	private JButton showNextCortinaButton = new JButton();
 	private JButton showNextTandaButton = new JButton();
 
+	private JSplitPane splitPane;
 	private Projector projector;
 
 	static {
@@ -278,6 +279,8 @@ public class Panda extends JFrame {
 			frame.setVisible(true);
 		}
 		panda.playButton.requestFocusInWindow();
+		// Note: Need to set divider location here, after having made the UI visible
+		panda.splitPane.setDividerLocation(0.25);
 	}
 
 	public Panda(Container contentPane) throws IOException, UnsupportedAudioFileException {
@@ -957,7 +960,8 @@ public class Panda extends JFrame {
 //			rightPanel.add(p);
 //			rightPanel.add(equalizerBox, BorderLayout.SOUTH);
 //		}
-		JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
+
+		splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
 		splitPane.setDividerSize(4);
 
 		JPanel topBox = new JPanel(new BorderLayout());
@@ -1051,10 +1055,6 @@ System.out.println("*** SPACE");
 					return;
 				}
 				JTable table = (JTable) e.getSource();
-//				// Only show popup if at least one row is selected
-//				if (table.getSelectedRowCount() <= 0) {
-//					return;
-//				}
 				// Determine if mouse was clicked on a selected row
 				boolean clickedSelectedRow = false;
 				int row = table.rowAtPoint(e.getPoint());
@@ -1065,24 +1065,30 @@ System.out.println("*** SPACE");
 						break;
 					}
 				}
+				// By default, the play and next track/cortina/tanda menu items are disabled
 				playNowMenuItem.setEnabled(false);
 				nextTrackMenuItem.setEnabled(false);
 				nextCortinaMenuItem.setEnabled(false);
 				nextTandaMenuItem.setEnabled(false);
-				// Only enable the play menu items if:
-				// - Exactly one row was selected
-				// - The clicked row is the selected row
 				if (table.getSelectedRowCount() == 1 && clickedSelectedRow) {
-					playNowMenuItem.setEnabled(true);
-					nextTrackMenuItem.setEnabled(true);
-					nextCortinaMenuItem.setEnabled(true);
-					nextTandaMenuItem.setEnabled(true);
-					// But disable the menu items if the clicked row is the current track
-					if (displayPlaylist == currentTrackPlaylist && row == currentTrackIndex) {
-						playNowMenuItem.setEnabled(false);
-						nextTrackMenuItem.setEnabled(false);
-						nextCortinaMenuItem.setEnabled(false);
-						nextTandaMenuItem.setEnabled(false);
+					// Only enable these menu items if:
+					// - Exactly one row was selected
+					// - The clicked row is the selected row
+					// - Plus further criteria...
+					if (Player.isPaused()) {
+						// Only enable "play now" if the player is in paused state
+						playNowMenuItem.setEnabled(true);
+					}
+					if (displayPlaylist != currentTrackPlaylist || row != currentTrackIndex) {
+						// Only enable "next" options if this is not the current track
+						nextTrackMenuItem.setEnabled(true);
+						if (isCortina(row, displayPlaylist)) {
+							// Only enable "next cortina" if it can be used as a cortina
+							nextCortinaMenuItem.setEnabled(true);
+						} else {
+							// Else enable "next tanda", ie. a track can be either next cortina or next tanda, but not both.
+							nextTandaMenuItem.setEnabled(true);
+						}
 					}
 				}
 				tablePopupMenu.show(table, e.getX(), e.getY());
@@ -1136,6 +1142,13 @@ System.out.println("*** SPACE");
 		nextCortinaMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				int row = table.getSelectedRow();
+				// If the current track is the last track in a tanda, then the next cortina immediately becomes the next track
+				if (isLastTrackInTanda(currentTrackIndex, currentTrackPlaylist)) {
+					nextTrackIndex = row;
+					nextTrackPlaylist = displayPlaylist;
+					showNextTrackButton.setEnabled(true);
+				}
+				// But we stil retain the next cortina...
 				nextCortinaIndex = row;
 				nextCortinaPlaylist = displayPlaylist;
 				showNextCortinaButton.setEnabled(true);
@@ -1150,9 +1163,18 @@ System.out.println("*** SPACE");
 		nextTandaMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				int row = table.getSelectedRow();
-				nextTandaIndex = row;
-				nextTandaPlaylist = displayPlaylist;
-				showNextTandaButton.setEnabled(true);
+				// If the current track is a cortina, then the next tanda immediately becomes the next track
+				Track track = currentTrackPlaylist.get(currentTrackIndex);
+				String genre = track.getTag("genre");
+				if (genre == null || !Util.projectorGenres.contains(genre)) {
+					nextTrackIndex = row;
+					nextTrackPlaylist = displayPlaylist;
+					showNextTrackButton.setEnabled(true);
+				} else {
+					nextTandaIndex = row;
+					nextTandaPlaylist = displayPlaylist;
+					showNextTandaButton.setEnabled(true);
+				}
 				PandaTableModel model = (PandaTableModel) table.getModel();
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
@@ -1740,13 +1762,6 @@ System.out.println("*** SPACE");
 					}
 				}
 				showNextTrackButton.setEnabled(nextTrackIndex < 0 ? false : true);
-				if ((nextCortinaPlaylist == currentTrackPlaylist && nextCortinaIndex == currentTrackIndex)  || (nextCortinaPlaylist == nextTrackPlaylist && nextCortinaIndex == nextTrackIndex)) {
-					// The "next cortina" is now either the current or next track, so reset it
-					nextCortinaPlaylist = null;
-					nextCortinaIndex = -1;
-					showNextCortinaButton.setEnabled(false);
-				}
-				// TODO: Same for next tanda playlist and index?
 				if ((nextTandaPlaylist == currentTrackPlaylist && nextTandaIndex == currentTrackIndex)  || (nextTandaPlaylist == nextTrackPlaylist && nextTandaIndex == nextTrackIndex)) {
 					// The "next tanda" is now either the current or next track, so reset it
 					nextTandaPlaylist = null;
@@ -1774,16 +1789,6 @@ System.out.println("*** SPACE");
 						if (nextTrackIndex >= 0 && nextTrackIndex < nextTrackPlaylist.size()) {
 							currentTrackPlaylist = nextTrackPlaylist;
 							currentTrackIndex = nextTrackIndex;
-						} else if (nextCortinaIndex >= 0 && nextCortinaIndex < nextCortinaPlaylist.size()) {
-							currentTrackPlaylist = nextCortinaPlaylist;
-							currentTrackIndex = nextCortinaIndex;
-							nextCortinaPlaylist = null;
-							nextCortinaIndex = -1;
-						} else if (nextTandaIndex >= 0 && nextTandaIndex < nextTandaPlaylist.size()) {
-							currentTrackPlaylist = nextTandaPlaylist;
-							currentTrackIndex = nextTandaIndex;
-							nextTandaPlaylist = null;
-							nextTandaIndex = -1;
 						} else {
 							// Reached end of playlist, so restore state to how it was at the start
 							currentTrackIndex = -1;
@@ -1800,7 +1805,11 @@ System.out.println("*** SPACE");
 					} else {
 						proceed = true;
 					}
-					refresh();
+					SwingUtilities.invokeLater(new Runnable() {
+						public void run() {
+							refresh();
+						}
+					});
 				} catch (IOException ioe) {
 					Util.log(Level.SEVERE, "Error while playing track " + currentTrackPlaylist.get(currentTrackIndex) + ": " + ioe);
 				} catch (UnsupportedAudioFileException uafe) {
