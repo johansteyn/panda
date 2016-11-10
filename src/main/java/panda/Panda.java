@@ -107,7 +107,7 @@ public class Panda extends JFrame {
 	private	JButton nextButton = new ImageButton("panda-next-032.png");
 	private JLabel rightLabel = new JLabel(" ");
 
-	private JSlider positionSlider = new SafeSlider(SwingConstants.HORIZONTAL);
+	private JSlider positionSlider = new PositionSlider(SwingConstants.HORIZONTAL);
 	private JLabel trackLabel = new JLabel(" "); // Need at least a space in order to establish height for component
 	private List<EQSlider> equalizerSliders = new ArrayList<EQSlider>();
 	private JSlider volumeSlider = new ControlSlider();
@@ -2261,6 +2261,53 @@ class ImageButton extends JButton {
 	}
 }
 
+// Moves slider to exact position where mouse is clicked.
+class PositionSlider extends JSlider {
+	static boolean initialized;
+
+	public PositionSlider(int orientation) {
+		super(orientation);
+		// Remove existing mouse listeners
+		MouseListener[] listeners = getMouseListeners();
+		for (MouseListener listener : listeners) {
+			removeMouseListener(listener);
+		}
+		// Add new mouse listener to jump to position of mouse click in track
+		final BasicSliderUI ui = (BasicSliderUI) getUI();
+		BasicSliderUI.TrackListener trackListener = ui.new TrackListener() {
+			@Override public void mouseClicked(MouseEvent event) {
+				Point point = event.getPoint();
+				int value = ui.valueForXPosition(point.x);
+				setValue(value);
+			}
+			// Disable check that will invoke scrollDueToClickInTrack
+			@Override public boolean shouldScroll(int dir) {
+				return false;
+			}
+		};
+		addMouseListener(trackListener);
+
+		// Add MouseMotionListener to update tooltip
+		MouseMotionListener mml = new MouseMotionListener() {
+			public void mouseMoved(MouseEvent e) {
+				ToolTipManager ttm = ToolTipManager.sharedInstance();
+				long time = System.currentTimeMillis() - ttm.getInitialDelay() + 1;  // So that the tooltip will trigger immediately
+				// Translate the X-coordinate into a slider position...
+				int position =  e.getX() * getMaximum() / getWidth();
+				setToolTipText(Util.minutesSeconds(position));
+			}
+			public void mouseDragged(MouseEvent e) {
+			}
+		};
+		addMouseMotionListener(mml);
+
+		// By default, all sliders will range from -10 to 10
+		setMinimum(-10);
+		setMaximum(10);
+		setValue(0);
+	}
+}
+
 // Consumes mouse events that occur outside of thumb in order to prevent accidentally setting slider
 class SafeSlider extends JSlider {
 	static boolean initialized;
@@ -2294,6 +2341,7 @@ class SafeSlider extends JSlider {
 		setValue(0);
 	}
 }
+
 
 class CustomSlider extends SafeSlider {
 	public CustomSlider(int orientation) {
