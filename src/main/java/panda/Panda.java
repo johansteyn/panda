@@ -436,12 +436,12 @@ public class Panda extends JFrame {
 					Util.log(Level.FINE, "Reading tags for file: " + filename);
 					track = trackMap.get(filename);
 					if (track == null) {
-						// TODO: tags found for file that no longer exists...
+						// Tags found for file that doesn't exist
+						Util.log(Level.SEVERE, "Tag file not found: " + filename);
 					}
 					continue;
 				}
 				if (track == null) {
-					// TODO: Ignoring tags for file that doesn't exist for now, but later we need to do something with it...
 					continue;
 				}
 				int index = line.indexOf("=");
@@ -505,9 +505,12 @@ public class Panda extends JFrame {
 				} else {
 					// Line is name of track - look it up in main list of tracks and add to tracks...
 					Track track = trackMap.get(line);
-					// TODO: What if track is null (ie. not found)?
-					//       Currently this results in a null p[ointer exception in the getValueAt method of PandaTableModel
-					tracks.add(track);
+					if (track == null) {
+						// Currently this results in a null p[ointer exception in the getValueAt method of PandaTableModel
+						Util.log(Level.SEVERE, "Playlist file not found: " + line);
+					} else {
+						tracks.add(track);
+					}
 				}
 			}
 		} catch (IOException ioe) {
@@ -571,6 +574,11 @@ public class Panda extends JFrame {
 		ToolTipManager ttm = ToolTipManager.sharedInstance();
 		ttm.setInitialDelay(0);
 		equalizerCheckbox.setToolTipText("Enable equalizer");
+		// I find tooltips to be annoying here...
+		//showCurrentTrackButton.setToolTipText("Now Playing");
+		//showNextTrackButton.setToolTipText("Next Track");
+		//showNextCortinaButton.setToolTipText("Next Cortina");
+		//showNextTandaButton.setToolTipText("Next Tanda");
 
 		DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode("Root");
 		for (String playlist : playlists) {
