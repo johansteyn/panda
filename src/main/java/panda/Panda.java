@@ -23,6 +23,7 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.EventObject;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -78,12 +79,14 @@ public class Panda extends JFrame {
 	private List<Track> nextCortinaPlaylist;
 	private List<Track> nextTandaPlaylist;
 	private List<Track> emptyPlaylist = new ArrayList<Track>(); 
+	private List<Track> historyPlaylist = new ArrayList<Track>();
 	// NOTE: Use track indexes rather than track instances, since tracks can appear more than once in a playlist
 	private int currentTrackIndex = -1;
 	private int nextTrackIndex = -1; 
 	private int nextCortinaIndex = -1; 
 	private int nextTandaIndex = -1; 
 	private PlayThread playThread = new PlayThread();
+	private SaveThread saveThread = new SaveThread();
 	private boolean settingPosition; // Flag to indicate that the position is being set during play, ie. not by the user dragging the slider.
 	private int prevPosition = -1; // The last position that the slider was set to by the user
 
@@ -299,6 +302,7 @@ public class Panda extends JFrame {
 		});
 		customPresets = new int[BANDS];
 		playThread.start();
+		saveThread.start();
 		projector = new Projector(this);
 	}
 	
@@ -521,6 +525,9 @@ public class Panda extends JFrame {
 				br.close();
 			}
 		}
+		String historyPlaylistName = "History/" + new Date();
+		playlists.add(historyPlaylistName);
+		playlistMap.put(historyPlaylistName, historyPlaylist);
 		Util.stopTimer(start, "Reading of playlists");
 	}
 
@@ -1729,7 +1736,53 @@ System.out.println("*** SPACE");
 	private void quit() {
 		int n = JOptionPane.showConfirmDialog(Panda.this, "Really quit?", "Panda", JOptionPane.YES_NO_OPTION);
 		if (n == JOptionPane.YES_OPTION) {
+			save();
 			System.exit(0);
+		}
+	}
+
+	class SaveThread extends Thread {
+		public SaveThread() {
+			setDaemon(true);
+			setPriority(Thread.MIN_PRIORITY);
+		}
+
+		public void run() {
+			Util.log(Level.INFO, "Starting save thread...");
+			while (true) {
+				// Save playlists once every minute
+				Util.pause(1000 * 60);
+				save();
+			}
+		}
+	}
+
+	// TODO: Save tag file as well
+	private void save() {
+		Util.log(Level.FINE, "Saving...");
+		PrintWriter pw = null;
+		try {
+			pw = new PrintWriter(Util.PANDA_HOME + "panda.playlists");
+			pw.println("#============ Panda playlist file generated on " + new Date() + " ============");
+			for (String playlist : playlists) {
+				if (playlist.equals("Tracks")) {
+					continue;
+				}
+				pw.println("");
+				pw.println("#-------------------------------------------------------------------------------");
+				pw.println("playlist=" + playlist);
+				List<Track> tracks = playlistMap.get(playlist);
+				for (Track track : tracks) {
+					pw.println(track.getFilename());
+				}
+				pw.flush();
+			}
+		} catch (IOException ioe) {
+			Util.log(Level.SEVERE, "Error saving playlists!" + " (" + ioe.getMessage() + ")");
+		} finally {
+			if (pw != null) {
+				pw.close();
+			}
 		}
 	}
 
@@ -1776,13 +1829,14 @@ System.out.println("*** SPACE");
 					nextTandaIndex = -1;
 					showNextTandaButton.setEnabled(false);
 				}
-				// Current and next tracks must be highlighted in UI
+				Track track = currentTrackPlaylist.get(currentTrackIndex);
+				historyPlaylist.add(track);
+				// Current and next tracks must be highlighted in UI, and history playlist must show current track
 				SwingUtilities.invokeLater(new Runnable() {
 					public void run() {
 						refresh();
 					}
 				});
-				Track track = currentTrackPlaylist.get(currentTrackIndex);
 				final Player player = track.getPlayer();
 				updateProjector();
 				try {
