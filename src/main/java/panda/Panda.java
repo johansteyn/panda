@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2013  Johan Steyn
+ *  Copyright (C) 2013-2016  Johan Steyn
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -47,7 +47,6 @@ import javax.swing.tree.*;
 
 // TODO: 
 // - CTRL-C and CTRL-N to display Current and Next tracks
-// - Splash screen
 // - Make the table row select colour configurable (default being whatever the LAF dictates)
 //   Normally I would leave this entirely up to the LAF, but with user being able to configure track colours it makes sense to make this configurable too...
 public class Panda extends JFrame {
@@ -55,6 +54,8 @@ public class Panda extends JFrame {
 	public static final int BANDS;
 	private static final boolean FULLSCREEN;
 	public static final int WAIT;
+	private static SplashScreen splash = SplashScreen.getSplashScreen();
+	private static Graphics2D splashGraphics;
 
 	private static List<Image> iconImages = new ArrayList<Image>();
 
@@ -135,7 +136,8 @@ public class Panda extends JFrame {
 
 	static {
 		// Ensure properties are loaded first by referencing Util class...
-		Util.log(Level.INFO, "Initializing Panda class...");
+		Util.log(Level.INFO, "Initializing Panda...");
+		updateSplash("Initializing Panda...");
 
 		String dirname = System.getProperty("panda.tracks.directory");
 		if (dirname == null) {
@@ -214,8 +216,33 @@ public class Panda extends JFrame {
 		System.setProperty("swing.aatext", "true"); 
 	}
 
+	static void updateSplash(String message) {
+		long millis = System.currentTimeMillis();
+		if (splash == null) {
+			splash = SplashScreen.getSplashScreen();
+			if (splash == null) {
+				return;
+			}
+		}
+		if (splashGraphics == null) {
+			splashGraphics = splash.createGraphics();
+			if (splashGraphics == null) {
+				return;
+			}
+		}
+		FontMetrics fm = splashGraphics.getFontMetrics();
+		int width = fm.stringWidth(message);
+		splashGraphics.setColor(Color.WHITE);
+		splashGraphics.fillRect(58, 56, 140, 16);
+		splashGraphics.setPaintMode();
+		splashGraphics.setColor(Color.BLACK);
+		splashGraphics.drawString(message, (256 - width) / 2, 68);
+		splash.update();
+	}
+
 	public static void main(String[] args) throws Exception {
 		Util.log(Level.FINE, "Starting Panda...");
+		updateSplash("Starting Panda...");
 		UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
 		String guiNative = System.getProperty("panda.gui.native");
 		if (guiNative == null || guiNative.equals("false")) {
@@ -288,22 +315,31 @@ public class Panda extends JFrame {
 
 	public Panda(Container contentPane) throws IOException, UnsupportedAudioFileException {
 		this.contentPane = contentPane;
+		updateSplash("Scanning tracks...");
 		scan();
+		updateSplash("Loading tracks...");
 		loadTracks();
+		updateSplash("Reading tags...");
 		readTags();
 		// Note: Need to sort main playlist after loading the tracks AND reading the tags.
 		Collections.sort(currentTrackPlaylist);
+		updateSplash("Reading playlists...");
 		readPlaylists();
 		// Not sure if I need to do this on event dispatch thread - better safe than sorry...
+		updateSplash("Building UI...");
 		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
 				buildUI();
 			}
 		});
 		customPresets = new int[BANDS];
+		updateSplash("Starting threads...");
 		playThread.start();
 		saveThread.start();
 		projector = new Projector(this);
+		if (splash != null) {
+			splash.close();
+		}
 	}
 	
 	// Kicks off scan of tracks directory
@@ -1768,10 +1804,14 @@ System.out.println("*** SPACE");
 				if (playlist.equals("Tracks")) {
 					continue;
 				}
+				List<Track> tracks = playlistMap.get(playlist);
+				if (tracks.isEmpty()) {
+					// Don't save empty playlists (multiple restarts can lead to empty history playlists)
+					continue;
+				}
 				pw.println("");
 				pw.println("#-------------------------------------------------------------------------------");
 				pw.println("playlist=" + playlist);
-				List<Track> tracks = playlistMap.get(playlist);
 				for (Track track : tracks) {
 					pw.println(track.getFilename());
 				}
