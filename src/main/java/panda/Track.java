@@ -69,6 +69,10 @@ public class Track implements Comparable<Track> {
 		return "";
 	}
 
+	public Map<String, String> getTags() {
+		return tags;
+	}
+
 	public void setChecked(boolean value) {
 		checked = value;
 	}

@@ -18,12 +18,21 @@ package panda;
 
 import java.awt.*;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.IOException;
+
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Properties;
@@ -105,6 +114,21 @@ class Util {
 
 	private static void initLogger() {
 		try {
+			File dir = new File(Util.PANDA_HOME + "bkp");
+			if (!dir.exists()) {
+				if (!dir.mkdirs()) {
+					throw new IOException("Error creating backup directory: " + Util.PANDA_HOME + "bkp");
+				}
+			}
+			DateFormat df = new SimpleDateFormat("yyyyMMdd.HHmmss");
+			String timestamp = df.format(new Date());
+			File file = new File(PANDA_HOME + "panda.log");
+			File backup = new File(PANDA_HOME + "bkp" + File.separator + "panda.log." + timestamp);
+			if (backup(file, backup, 60, (int) Math.pow(2, 10))) {
+				// Backup the log file if it is older than an hour (60 minutes) or larger than 1MB (2 to the power of 10 kilobytes)
+				file.delete();
+			}			
+
 			Handler handler = new FileHandler(PANDA_HOME + "panda.log", true);
 			handler.setFormatter(new SimpleFormatter());
 			logger.addHandler(handler);
@@ -274,6 +298,56 @@ System.out.println("*** After: " + string);
 		} else {
 			component.setForeground(Color.WHITE);
 		}
+	}
+
+	public static long dump(InputStream is, OutputStream os) throws IOException {
+		long size = 0;
+		byte[] buffer = new byte[100000];
+		int count = 0;
+		while (true) {
+			count = is.read(buffer);
+			if (count < 0) {
+				break;
+			}
+			os.write(buffer, 0, count);
+			os.flush();  // Found this to be necessary to avoid empty files...
+			size += count;
+		}
+		return size;
+	}
+
+	public static void copy(File src, File dst) throws IOException {
+		BufferedInputStream bis = null;
+		BufferedOutputStream bos = null;
+		try {
+			bis = new BufferedInputStream(new FileInputStream(src));
+			bos = new BufferedOutputStream(new FileOutputStream(dst));
+			dump(bis, bos);
+		} finally {
+			if (bis != null) bis.close();
+			if (bos != null) bos.close();
+		}
+	}
+
+	public static boolean backup(File file, File backup, int minutes) throws IOException {
+		return backup(file, backup, minutes, -1);
+	}
+
+	// Copies a file to the specified backup if it is either:
+	// - Older than the specified number of minutes, or
+	// - Larger than the specified kilobytes
+	// Return true if it was backed up (so that we can know whether to delete it, if necessary)
+	public static boolean backup(File file, File backup, int minutes, int kilobytes) throws IOException {
+		long millis = System.currentTimeMillis();
+		long modified = file.lastModified();
+		if ((millis - modified) > (minutes * 60 * 1000) || (kilobytes > 0 && file.length() >= kilobytes * Math.pow(2, 20))) {
+			// File is older than specified minutes, so copy it to the backup file
+			copy(file, backup);
+			// "Touch" the file so it won't be backed up until the specified time expires again
+			file.setLastModified(millis);
+			return true;
+		}
+		return false;
 	}
 }
 

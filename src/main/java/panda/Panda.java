@@ -20,6 +20,8 @@ import java.awt.*;
 import java.awt.event.*;
 import java.beans.*;
 import java.io.*;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -381,6 +383,8 @@ public class Panda extends JFrame {
 				filenames.add(filename);
 			}
 		}
+		// TODO: Sort filenames so that the tags file is sorted
+		Collections.sort(filenames);
 	}
 
 	// Populates the main playlist of tracks, creating a new Track instance for every file found during scan
@@ -442,7 +446,6 @@ public class Panda extends JFrame {
 			});
 			trackMap.put(filename, track);
 			currentTrackPlaylist.add(track);
-			// TODO: For file formats that support tagging (MP3, FLAC, etc.) we need to read the tag info here...
 		}
 		int number = currentTrackPlaylist.size();
 		Util.stopTimer(start, "Load of " + number + " tracks");
@@ -477,7 +480,7 @@ public class Panda extends JFrame {
 					track = trackMap.get(filename);
 					if (track == null) {
 						// Tags found for file that doesn't exist
-						Util.log(Level.SEVERE, "Tag file not found: " + filename);
+						Util.log(Level.SEVERE, "File not found for tag entry: " + filename);
 					}
 					continue;
 				}
@@ -547,7 +550,7 @@ public class Panda extends JFrame {
 					Track track = trackMap.get(line);
 					if (track == null) {
 						// Currently this results in a null p[ointer exception in the getValueAt method of PandaTableModel
-						Util.log(Level.SEVERE, "Playlist file not found: " + line);
+						Util.log(Level.SEVERE, "File not found for playlist entry: " + line);
 					} else {
 						tracks.add(track);
 					}
@@ -1786,43 +1789,100 @@ System.out.println("*** SPACE");
 		public void run() {
 			Util.log(Level.INFO, "Starting save thread...");
 			while (true) {
-				// Save playlists once every minute
-				Util.pause(1000 * 60);
+				// Save every 10 minutes, starting immediately (so we have backups from the start)
 				save();
+				Util.pause(10 * 60 * 1000);
 			}
 		}
 	}
 
-	// TODO: Save tag file as well
+	// Save playlists and tags (including backup copies)
 	private void save() {
 		Util.log(Level.FINE, "Saving...");
-		PrintWriter pw = null;
+		DateFormat df = new SimpleDateFormat("yyyyMMdd.HHmmss");
+		String timestamp = df.format(new Date());
 		try {
-			pw = new PrintWriter(Util.PANDA_HOME + "panda.playlists");
-			pw.println("#============ Panda playlist file generated on " + new Date() + " ============");
-			for (String playlist : playlists) {
-				if (playlist.equals("Tracks")) {
-					continue;
-				}
-				List<Track> tracks = playlistMap.get(playlist);
-				if (tracks.isEmpty()) {
-					// Don't save empty playlists (multiple restarts can lead to empty history playlists)
-					continue;
-				}
-				pw.println("");
-				pw.println("#-------------------------------------------------------------------------------");
-				pw.println("playlist=" + playlist);
-				for (Track track : tracks) {
-					pw.println(track.getFilename());
-				}
-				pw.flush();
-			}
+			savePlaylists(timestamp);
+			saveTags(timestamp);
 		} catch (IOException ioe) {
 			Util.log(Level.SEVERE, "Error saving playlists!" + " (" + ioe.getMessage() + ")");
-		} finally {
-			if (pw != null) {
-				pw.close();
+		}
+	}
+
+	private void savePlaylists(String timestamp) throws IOException {
+		File file = new File(Util.PANDA_HOME + "panda.playlists");
+		File backup = new File(Util.PANDA_HOME + "bkp" + File.separator + "panda.playlists." + timestamp);
+		savePlaylists(file, backup);
+	}
+
+	private void saveTags(String timestamp) throws IOException {
+		File file = new File(Util.PANDA_HOME + "panda.tags");
+		File backup = new File(Util.PANDA_HOME + "bkp" + File.separator + "panda.tags." + timestamp);
+		saveTags(file, backup);
+	}
+
+	private void savePlaylists(File file, File backup) throws IOException {
+		Util.backup(file, backup, 1);
+		long oldLength = file.length();
+		PrintWriter pw = new PrintWriter(file);
+		pw.println("#============ Panda playlists ============");
+		for (String playlist : playlists) {
+			if (playlist.equals("Tracks")) {
+				continue;
 			}
+			List<Track> tracks = playlistMap.get(playlist);
+			if (tracks.isEmpty()) {
+				// Don't save empty playlists (multiple restarts can lead to empty history playlists)
+				continue;
+			}
+			pw.println("");
+			pw.println("#-------------------------------------------------------------------------------");
+			pw.println("playlist=" + playlist);
+			for (Track track : tracks) {
+				pw.println(track.getFilename());
+			}
+			pw.flush();
+		}
+		pw.close();
+		long newLength = file.length();
+		if (oldLength != newLength) {
+			// File has changed since it was last saved, so copy it to the specified backup file
+			Util.copy(file, backup);
+		}
+	}
+
+	private void saveTags(File file, File backup) throws IOException {
+		Util.backup(file, backup, 1);
+		long oldLength = file.length();
+		PrintWriter pw = new PrintWriter(file);
+		pw.println("#============ Panda tags ============");
+		pw.println("");
+		for (String filename : filenames) {
+			Track track = trackMap.get(filename);
+			String title = track.getTitle();
+			Map<String, String> tags = track.getTags();
+			if (title.equals(filename) && tags.isEmpty()) {
+				// No tags configured for this file
+				continue;
+			}
+			pw.println("#-------------------------------------------------------------------------------");
+			pw.println("file=" + filename);
+			pw.println("title=" + track.getTitle());
+			Set set = tags.keySet();
+			Iterator it = set.iterator();
+			while (it.hasNext()) {
+				String key = (String) it.next();
+				String value = (String) tags.get(key);
+				pw.println(key + "=" + value);
+			}
+			pw.println("");
+			pw.flush();
+		}
+		pw.close();
+		long newLength = file.length();
+		if (oldLength != newLength) {
+			// File has changed since it was last saved, so copy it to the specified backup file
+			Util.copy(file, backup);
 		}
 	}
 
