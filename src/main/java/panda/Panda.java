@@ -1776,6 +1776,7 @@ System.out.println("*** SPACE");
 		int n = JOptionPane.showConfirmDialog(Panda.this, "Really quit?", "Panda", JOptionPane.YES_NO_OPTION);
 		if (n == JOptionPane.YES_OPTION) {
 			save();
+			cleanup();
 			System.exit(0);
 		}
 	}
@@ -1884,6 +1885,52 @@ System.out.println("*** SPACE");
 			// File has changed since it was last saved, so copy it to the specified backup file
 			Util.copy(file, backup);
 		}
+	}
+
+	// Removes duplicate backup files
+	private void cleanup() {
+		Util.log(Level.FINE, "Cleaning up...");
+		File dir = new File(Util.PANDA_HOME + "bkp");
+		File[] filesArray = dir.listFiles();
+		List<File> files = Arrays.asList(filesArray);
+		Collections.sort(files);
+		File previousFile = null;
+		for (File file : files) {
+			String filename = file.getName();
+			String basename = stripTimestamp(filename);
+			if (basename.equals(filename)) {
+				// Ignore files that might end up here not conforming to expectations
+				continue;
+			}
+			if (previousFile == null) {
+				previousFile = file;
+				continue;
+			}
+			String previousFilename = previousFile.getName();
+			String previousBasename = stripTimestamp(previousFilename);
+			if (basename.equals(previousBasename) && file.length() == previousFile.length()) {
+				// Basenames match and files have same length, so delete the older one
+				previousFile.delete();
+			}
+			previousFile = file;
+		}
+	}
+
+	// Strips the timestamp off a backup filename, which must start with "panda." and contain a timestamp
+	// Eg: panda.playlists.20161123.185820 returns panda.playlists
+	// If doesn't start with "panda." or cannot be stripped for whatever reason, then simply return the filename.
+	private String stripTimestamp(String filename) {
+		if (!filename.startsWith("panda.")) {
+			return filename;
+		}
+		// Strip off the leading "panda."
+		String string = filename.substring(6);
+		int index = string.indexOf(".");
+		if (index <= 0) {
+			// No timestamp found
+			return filename;
+		}
+		return filename.substring(0, index + 6);
 	}
 
 	class PlayThread extends Thread {

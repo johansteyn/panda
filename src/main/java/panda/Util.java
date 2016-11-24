@@ -124,8 +124,10 @@ class Util {
 			String timestamp = df.format(new Date());
 			File file = new File(PANDA_HOME + "panda.log");
 			File backup = new File(PANDA_HOME + "bkp" + File.separator + "panda.log." + timestamp);
-			if (backup(file, backup, 60, (int) Math.pow(2, 10))) {
-				// Backup the log file if it is older than an hour (60 minutes) or larger than 1MB (2 to the power of 10 kilobytes)
+//			if (backup(file, backup, 60, (int) Math.pow(2, 10))) {
+//				// Backup the log file if it is older than an hour (60 minutes) or larger than 1MB (2 to the power of 10 kilobytes)
+			if (backup(file, backup, 24 * 60, 100)) {
+				// Backup the log file if it is older than one day or larger than 100 kilobytes
 				file.delete();
 			}			
 
@@ -336,14 +338,13 @@ System.out.println("*** After: " + string);
 	// Copies a file to the specified backup if it is either:
 	// - Older than the specified number of minutes, or
 	// - Larger than the specified kilobytes
-	// Return true if it was backed up (so that we can know whether to delete it, if necessary)
+	// Return true if it was backed up (so we can decide to delete it, in the case of log files)
 	public static boolean backup(File file, File backup, int minutes, int kilobytes) throws IOException {
 		long millis = System.currentTimeMillis();
 		long modified = file.lastModified();
-		if ((millis - modified) > (minutes * 60 * 1000) || (kilobytes > 0 && file.length() >= kilobytes * Math.pow(2, 20))) {
-			// File is older than specified minutes, so copy it to the backup file
+		if ((millis - modified) > (minutes * 60 * 1000) || (kilobytes > 0 && file.length() >= kilobytes * Math.pow(2, 10))) {
 			copy(file, backup);
-			// "Touch" the file so it won't be backed up until the specified time expires again
+			// "Touch" the file so that its timestamp doesn't trigger another backup
 			file.setLastModified(millis);
 			return true;
 		}
