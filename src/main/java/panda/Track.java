@@ -105,6 +105,33 @@ public class Track implements Comparable<Track> {
 		return sb.toString();
 	}
 
+	// Returns true if either the specified field or else any field matches the regex pattern.
+	// Note that the field is compared in a simple, case-insensitive manner, 
+	// while the regex pattern is matched in a case-sensitive manner.
+	// TODO: Treat special letters (eg: ñáéíóú) as normal letters (eg: naeiou) - remember to do uppercase ones too!
+	public boolean matches(String field, String regex) {
+		if (field == null || field.equalsIgnoreCase("title")) {
+			if (title.matches(regex)) {
+				return true;
+			}
+		}
+		if (tags.size() > 0) {
+			Set set = tags.keySet();
+			Iterator it = set.iterator();
+			while (it.hasNext()) {
+				String key = (String) it.next();
+				String value = tags.get(key);
+				if (field == null || field.equalsIgnoreCase(key)) {
+					if (value.matches(regex)) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
+	}
+
+
 	public int compareTo(Track that) {
 		return this.title.compareTo(that.title);
 	}

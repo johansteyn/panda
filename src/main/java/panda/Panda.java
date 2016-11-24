@@ -83,6 +83,7 @@ public class Panda extends JFrame {
 	private List<Track> nextTandaPlaylist;
 	private List<Track> emptyPlaylist = new ArrayList<Track>(); 
 	private List<Track> historyPlaylist = new ArrayList<Track>();
+	private List<Track> holdPlaylist;
 	// NOTE: Use track indexes rather than track instances, since tracks can appear more than once in a playlist
 	private int currentTrackIndex = -1;
 	private int nextTrackIndex = -1; 
@@ -1475,6 +1476,46 @@ System.out.println("*** SPACE");
 				Panda.this.displayPlaylist = playlistMap.get(playlist);
 				table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
 				refresh();
+			}
+		});
+		searchField.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				String text = searchField.getText();
+				text = text.trim();
+//System.out.println("*** Search: [" + text + "]");
+				if (text.equals("")) {
+					if (Panda.this.holdPlaylist == null) {
+						// Nothing to do
+						return;
+					}
+					// Restore table to original contents before search was done
+					Panda.this.displayPlaylist = Panda.this.holdPlaylist;
+					table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
+					Panda.this.holdPlaylist = null;
+					return;
+				}
+				String field = null;
+				String regex = text;
+				int index = text.indexOf("=");
+				if (index > 0 && index < text.length() - 1) {
+					field = text.substring(0, index);
+					field = field.trim();
+					regex = text.substring(index + 1);
+					regex = regex.trim();
+				}
+				regex = ".*" + regex + ".*";
+				if (Panda.this.holdPlaylist == null) {
+					Panda.this.holdPlaylist = Panda.this.displayPlaylist;
+				}
+				List<Track> matchingPlaylist = new ArrayList<Track>();
+				for (Track track : Panda.this.holdPlaylist) {
+					if (track.matches(field, regex)) {
+						matchingPlaylist.add(track);
+					}
+				}
+				Panda.this.displayPlaylist = matchingPlaylist;
+				table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
+				return;
 			}
 		});
 	}
