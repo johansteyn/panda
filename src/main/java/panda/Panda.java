@@ -141,6 +141,8 @@ public class Panda extends JFrame {
 	private JSplitPane splitPane;
 	private Projector projector;
 
+	private String filter;
+
 	static {
 		// Ensure properties are loaded first by referencing Util class...
 		Util.log(Level.INFO, "Initializing Panda...");
@@ -643,7 +645,8 @@ public class Panda extends JFrame {
 		tree.setCellRenderer(new PandaTreeCellRenderer());
 
 		displayPlaylist = currentTrackPlaylist;
-		table = new PandaTable(new PandaTableModel(displayPlaylist), tableColumnModel);
+		PandaTableModel tableModel = new PandaTableModel(displayPlaylist);
+		table = new PandaTable(tableModel, tableColumnModel);
 		table.setFillsViewportHeight(true); // Makes it easier to make the table a target for drag-and-drop
 		table.setBackground(Color.white);
 		// Don't want these...
@@ -1142,10 +1145,11 @@ System.out.println("*** SPACE");
 						// Only enable "play now" if the player is in paused state
 						playNowMenuItem.setEnabled(true);
 					}
-					if (displayPlaylist != currentTrackPlaylist || row != currentTrackIndex) {
+					int modelRow = table.convertRowIndexToModel(row);
+					if (displayPlaylist != currentTrackPlaylist || modelRow != currentTrackIndex) {
 						// Only enable "next" options if this is not the current track
 						nextTrackMenuItem.setEnabled(true);
-						if (isCortina(row, displayPlaylist)) {
+						if (isCortina(modelRow, displayPlaylist)) {
 							// Only enable "next cortina" if it can be used as a cortina
 							nextCortinaMenuItem.setEnabled(true);
 						} else {
@@ -1173,9 +1177,10 @@ System.out.println("*** SPACE");
 			public void actionPerformed(ActionEvent e) {
 				Player.stop();
 				int row = table.getSelectedRow();
-				currentTrackIndex = row;
+				int modelRow = table.convertRowIndexToModel(row);
+				currentTrackIndex = modelRow;
 				// NOTE: We need to set next track index, as we will stop the current track so that the "next" track can play.
-				nextTrackIndex = row;
+				nextTrackIndex = modelRow;
 				currentTrackPlaylist = displayPlaylist;
 				nextTrackPlaylist = displayPlaylist;
 				PandaTableModel model = (PandaTableModel) table.getModel();
@@ -1191,7 +1196,8 @@ System.out.println("*** SPACE");
 		nextTrackMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				int row = table.getSelectedRow();
-				nextTrackIndex = row;
+				int modelRow = table.convertRowIndexToModel(row);
+				nextTrackIndex = modelRow;
 				nextTrackPlaylist = displayPlaylist;
 				showNextTrackButton.setEnabled(true);
 				PandaTableModel model = (PandaTableModel) table.getModel();
@@ -1205,14 +1211,15 @@ System.out.println("*** SPACE");
 		nextCortinaMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				int row = table.getSelectedRow();
+				int modelRow = table.convertRowIndexToModel(row);
 				// If the current track is the last track in a tanda, then the next cortina immediately becomes the next track
 				if (isLastTrackInTanda(currentTrackIndex, currentTrackPlaylist)) {
-					nextTrackIndex = row;
+					nextTrackIndex = modelRow;
 					nextTrackPlaylist = displayPlaylist;
 					showNextTrackButton.setEnabled(true);
 				}
-				// But we stil retain the next cortina...
-				nextCortinaIndex = row;
+				// But we still retain the next cortina...
+				nextCortinaIndex = modelRow;
 				nextCortinaPlaylist = displayPlaylist;
 				showNextCortinaButton.setEnabled(true);
 				PandaTableModel model = (PandaTableModel) table.getModel();
@@ -1226,15 +1233,16 @@ System.out.println("*** SPACE");
 		nextTandaMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				int row = table.getSelectedRow();
+				int modelRow = table.convertRowIndexToModel(row);
 				// If the current track is a cortina, then the next tanda immediately becomes the next track
 				Track track = currentTrackPlaylist.get(currentTrackIndex);
 				String genre = track.getTag("genre");
 				if (genre == null || !Util.projectorGenres.contains(genre)) {
-					nextTrackIndex = row;
+					nextTrackIndex = modelRow;
 					nextTrackPlaylist = displayPlaylist;
 					showNextTrackButton.setEnabled(true);
 				} else {
-					nextTandaIndex = row;
+					nextTandaIndex = modelRow;
 					nextTandaPlaylist = displayPlaylist;
 					showNextTandaButton.setEnabled(true);
 				}
@@ -1462,11 +1470,7 @@ System.out.println("*** SPACE");
 				} else {
 					filterCheckbox.setToolTipText("Case-insensitive");
 				}
-				String text = filterField.getText();
-				if (!text.equals(FILTER_TEXT)) {
-					// Only filter if text field does not contain the default text
-					filter();
-				}
+				filter();
 			}
 		});
 		tree.addTreeSelectionListener(new TreeSelectionListener() {
@@ -1518,54 +1522,14 @@ System.out.println("*** SPACE");
 	}
 
 	private void filter() {
+//System.out.println("*** Filtering...");
 		String text = filterField.getText();
 		text = text.trim();
-		if (text.equals("")) {
-			if (Panda.this.holdPlaylist == null) {
-				// Nothing to do
-				return;
-			}
-			// Restore table to original contents before filtering was done
-			Panda.this.displayPlaylist = Panda.this.holdPlaylist;
-			table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
-			Panda.this.holdPlaylist = null;
-			refresh();
+		if (text.equals(FILTER_TEXT)) {
 			return;
 		}
-		if (Panda.this.holdPlaylist == null) {
-			Panda.this.holdPlaylist = Panda.this.displayPlaylist;
-		}
-		String field = null;
-		String regex = Util.replaceSpecialChars(text);
-		int index = text.indexOf("=");
-		if (index > 0 && index < text.length() - 1) {
-			field = text.substring(0, index);
-			field = field.trim();
-			regex = text.substring(index + 1);
-			regex = regex.trim();
-		}
-		regex = ".*" + regex + ".*";
-		boolean valid = true;
-		try {
-			Pattern pattern = Pattern.compile(regex);
-		} catch (PatternSyntaxException pse) {
-			valid = false;
-		}
-		List<Track> filterPlaylist = new ArrayList<Track>();
-		playlistMap.put("Filter", filterPlaylist);
-		if (valid) {
-			// Don't bother looking for matches when  the regex pattern is invalid
-			for (Track track : Panda.this.holdPlaylist) {
-				boolean caseSensitive = filterCheckbox.isSelected();
-				if (track.matches(field, regex, caseSensitive)) {
-					filterPlaylist.add(track);
-				}
-			}
-		}
-		Panda.this.displayPlaylist = filterPlaylist;
-		table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
+		filter = text;
 		refresh();
-		return;
 	}
 
 	private void showCurrentTrack() {
@@ -1855,6 +1819,16 @@ System.out.println("*** SPACE");
 	}
 
 	private void refresh() {
+		if (filter != null && filter.length() > 0) {
+			TableModel tableModel = table.getModel();
+			TableRowSorter<TableModel> sorter = new TableRowSorter<TableModel>(tableModel);
+			sorter.setRowFilter(RowFilter.regexFilter(filter));
+			table.setRowSorter(sorter);
+		} else {
+			// Turn sorting off
+			table.setRowSorter(null);
+		}
+
 		tree.repaint();
 		table.repaint();
 	}
@@ -2212,7 +2186,7 @@ System.out.println("*** SPACE");
 			// Need to set opaque in order for background color to show
 			component.setOpaque(true);
 			Color color = Color.WHITE;
-			String genre = model.getGenre(row);
+			String genre = model.getGenre(modelRow);
 			if (genreColors.containsKey(genre)) {
 				color = genreColors.get(genre);
 			}
