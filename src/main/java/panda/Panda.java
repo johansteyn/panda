@@ -37,6 +37,8 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.Vector;
 import java.util.logging.Level;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import javax.sound.sampled.*;
 import javax.swing.*;
 import javax.swing.border.*;
@@ -58,6 +60,7 @@ public class Panda extends JFrame {
 	public static final int WAIT;
 	private static SplashScreen splash = SplashScreen.getSplashScreen();
 	private static Graphics2D splashGraphics;
+	private static String FILTER_TEXT = "Filter..."; // Default filter text
 
 	private static List<Image> iconImages = new ArrayList<Image>();
 
@@ -126,7 +129,8 @@ public class Panda extends JFrame {
 	private JTree tree;
 	private JTable table;
 	private JLabel statusLabel = new JLabel(" ");
-	private JTextField searchField = new JTextField("Search...", 20);
+	private JTextField filterField = new JTextField(FILTER_TEXT, 20);
+	private JCheckBox filterCheckbox = new JCheckBox();  // Unselected by default
 	private TableColumnModel tableColumnModel = new PandaTableColumnModel();
 
 	private JButton showCurrentTrackButton = new JButton();
@@ -440,7 +444,7 @@ public class Panda extends JFrame {
 						}
 					});
 					// Track is playing, so to be safe, have play button grab focus, but not if some other component needs to retain focus
-					if (!searchField.hasFocus() && !equalizerPresets.hasFocus()) {
+					if (!filterField.hasFocus() && !equalizerPresets.hasFocus()) {
 						playButton.requestFocusInWindow();
 					}
 				}
@@ -620,7 +624,8 @@ public class Panda extends JFrame {
 		// ToolTips
 		ToolTipManager ttm = ToolTipManager.sharedInstance();
 		ttm.setInitialDelay(0);
-		equalizerCheckbox.setToolTipText("Enable equalizer");
+		equalizerCheckbox.setToolTipText("Equalizer disabled");
+		filterCheckbox.setToolTipText("Case-insensitive");
 		// I find tooltips to be annoying here...
 		//showCurrentTrackButton.setToolTipText("Now Playing");
 		//showNextTrackButton.setToolTipText("Next Track");
@@ -998,11 +1003,14 @@ public class Panda extends JFrame {
 		JPanel rightPanel = new JPanel(new BorderLayout());
 		JScrollPane tableScrollPane = new JScrollPane(table);
 
-		JPanel infoSearchPanel = new JPanel(new BorderLayout());
-		infoSearchPanel.add(statusLabel);
-		infoSearchPanel.add(searchField, BorderLayout.EAST);
+		JPanel filterPanel = new JPanel(new BorderLayout());
+		filterPanel.add(filterField);
+		filterPanel.add(filterCheckbox, BorderLayout.EAST);
+		JPanel infoFilterPanel = new JPanel(new BorderLayout());
+		infoFilterPanel.add(statusLabel);
+		infoFilterPanel.add(filterPanel, BorderLayout.EAST);
 		rightPanel.add(tableScrollPane);
-		rightPanel.add(infoSearchPanel, BorderLayout.SOUTH);
+		rightPanel.add(infoFilterPanel, BorderLayout.SOUTH);
 		if (layout == 3) {
 			JPanel p = rightPanel;
 			rightPanel = new JPanel(new BorderLayout());
@@ -1437,13 +1445,27 @@ System.out.println("*** SPACE");
 				}
 			}
 		});
-		equalizerCheckbox.addChangeListener(new ChangeListener() {
-			public void stateChanged(ChangeEvent e) {
+		equalizerCheckbox.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
 				Player.setEqualizerEnabled(equalizerCheckbox.isSelected());
 				if (equalizerCheckbox.isSelected()) {
-					equalizerCheckbox.setToolTipText("Disable equalizer");
+					equalizerCheckbox.setToolTipText("Equalizer enabled");
 				} else {
-					equalizerCheckbox.setToolTipText("Enable equalizer");
+					equalizerCheckbox.setToolTipText("Equalizer disabled");
+				}
+			}
+		});
+		filterCheckbox.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				if (filterCheckbox.isSelected()) {
+					filterCheckbox.setToolTipText("Case-sensitive");
+				} else {
+					filterCheckbox.setToolTipText("Case-insensitive");
+				}
+				String text = filterField.getText();
+				if (!text.equals(FILTER_TEXT)) {
+					// Only filter if text field does not contain the default text
+					filter();
 				}
 			}
 		});
@@ -1478,46 +1500,72 @@ System.out.println("*** SPACE");
 				refresh();
 			}
 		});
-		searchField.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent e) {
-				String text = searchField.getText();
-				text = text.trim();
-//System.out.println("*** Search: [" + text + "]");
-				if (text.equals("")) {
-					if (Panda.this.holdPlaylist == null) {
-						// Nothing to do
-						return;
-					}
-					// Restore table to original contents before search was done
-					Panda.this.displayPlaylist = Panda.this.holdPlaylist;
-					table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
-					Panda.this.holdPlaylist = null;
-					return;
-				}
-				String field = null;
-				String regex = text;
-				int index = text.indexOf("=");
-				if (index > 0 && index < text.length() - 1) {
-					field = text.substring(0, index);
-					field = field.trim();
-					regex = text.substring(index + 1);
-					regex = regex.trim();
-				}
-				regex = ".*" + regex + ".*";
-				if (Panda.this.holdPlaylist == null) {
-					Panda.this.holdPlaylist = Panda.this.displayPlaylist;
-				}
-				List<Track> matchingPlaylist = new ArrayList<Track>();
-				for (Track track : Panda.this.holdPlaylist) {
-					if (track.matches(field, regex)) {
-						matchingPlaylist.add(track);
-					}
-				}
-				Panda.this.displayPlaylist = matchingPlaylist;
-				table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
-				return;
+		filterField.addMouseListener(new MouseAdapter() {
+			public void mouseClicked(MouseEvent e) {
+				filterField.selectAll();
 			}
 		});
+		filterField.addKeyListener(new KeyAdapter() {
+			public void keyTyped(KeyEvent e) {
+				// Needs to be done on the Swing event thread because the text field is not always up-to-date
+				SwingUtilities.invokeLater(new Runnable() {
+					public void run() {
+						filter();
+					}
+				});
+			}
+		});
+	}
+
+	private void filter() {
+		String text = filterField.getText();
+		text = text.trim();
+		if (text.equals("")) {
+			if (Panda.this.holdPlaylist == null) {
+				// Nothing to do
+				return;
+			}
+			// Restore table to original contents before filtering was done
+			Panda.this.displayPlaylist = Panda.this.holdPlaylist;
+			table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
+			Panda.this.holdPlaylist = null;
+			refresh();
+			return;
+		}
+		if (Panda.this.holdPlaylist == null) {
+			Panda.this.holdPlaylist = Panda.this.displayPlaylist;
+		}
+		String field = null;
+		String regex = Util.replaceSpecialChars(text);
+		int index = text.indexOf("=");
+		if (index > 0 && index < text.length() - 1) {
+			field = text.substring(0, index);
+			field = field.trim();
+			regex = text.substring(index + 1);
+			regex = regex.trim();
+		}
+		regex = ".*" + regex + ".*";
+		boolean valid = true;
+		try {
+			Pattern pattern = Pattern.compile(regex);
+		} catch (PatternSyntaxException pse) {
+			valid = false;
+		}
+		List<Track> filterPlaylist = new ArrayList<Track>();
+		playlistMap.put("Filter", filterPlaylist);
+		if (valid) {
+			// Don't bother looking for matches when  the regex pattern is invalid
+			for (Track track : Panda.this.holdPlaylist) {
+				boolean caseSensitive = filterCheckbox.isSelected();
+				if (track.matches(field, regex, caseSensitive)) {
+					filterPlaylist.add(track);
+				}
+			}
+		}
+		Panda.this.displayPlaylist = filterPlaylist;
+		table.setModel(new PandaTableModel(Panda.this.displayPlaylist));
+		refresh();
+		return;
 	}
 
 	private void showCurrentTrack() {
@@ -1710,8 +1758,6 @@ System.out.println("*** SPACE");
 		String header = System.getProperty("panda.projector.map." + orchestra);
 		if (header == null) {
 			header = orchestra;
-		//} else {
-		//	header = Util.replaceSpecialChars(header);
 		}
 		projector.setHeader(header);
 		projector.setImage("orchestra/" + header + ".jpg");

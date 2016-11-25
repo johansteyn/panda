@@ -269,24 +269,23 @@ class Util {
 		long millis = end - start;
 		Util.log(Level.INFO, operation + " took " + millis + " millseconds");
 	}
-/*
+
 	public static String replaceSpecialChars(String string) {
-System.out.println("*** Before: " + string);
-		string = string.replace("ñ", "\u00F1");
-		string = string.replace("Á", "\u00C1");
-		string = string.replace("á", "\u00E1");
-		string = string.replace("É", "\u00C9");
-		string = string.replace("é", "\u00E9");
-		string = string.replace("Í", "\u00CD");
-		string = string.replace("í", "\u00ED");
-		string = string.replace("Ó", "\u00D3");
-		string = string.replace("ó", "\u00F3");
-		string = string.replace("Ú", "\u00DA");
-		string = string.replace("ú", "\u00FA");
-System.out.println("*** After: " + string);
+//System.out.println("*** Before: " + string);
+		string = string.replace("ñ", "n"); // \u00F1
+		string = string.replace("Á", "A"); // \u00C1
+		string = string.replace("á", "a"); // \u00E1
+		string = string.replace("É", "E"); // \u00C9
+		string = string.replace("é", "e"); // \u00E9
+		string = string.replace("Í", "I"); // \u00CD
+		string = string.replace("í", "i"); // \u00ED
+		string = string.replace("Ó", "O"); // \u00D3
+		string = string.replace("ó", "o"); // \u00F3
+		string = string.replace("Ú", "U"); // \u00DA
+		string = string.replace("ú", "u"); // \u00FA
+//System.out.println("*** After: " + string);
 		return string;
 	}
-*/
 
 	// Make component's foreground (ie. text) either black or white, depending on how light or dark the background is
 //	public static void setTextColor(Component component, Color background) {

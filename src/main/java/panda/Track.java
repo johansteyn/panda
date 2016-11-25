@@ -108,11 +108,26 @@ public class Track implements Comparable<Track> {
 	// Returns true if either the specified field or else any field matches the regex pattern.
 	// Note that the field is compared in a simple, case-insensitive manner, 
 	// while the regex pattern is matched in a case-sensitive manner.
-	// TODO: Treat special letters (eg: ñáéíóú) as normal letters (eg: naeiou) - remember to do uppercase ones too!
-	public boolean matches(String field, String regex) {
+	// Note: Special letters (eg: ñáéíóú) are treated as their equivalent normal letters (eg: naeiou)
+	public boolean matches(String field, String regex, boolean caseSensitive) {
+		if (regex == null || regex.equals("")) {
+			return false;
+		}
+		if (!caseSensitive) {
+			regex = regex.toLowerCase();
+		}
 		if (field == null || field.equalsIgnoreCase("title")) {
-			if (title.matches(regex)) {
+			String value = Util.replaceSpecialChars(title);
+			if (!caseSensitive) {
+				value = value.toLowerCase();
+			}
+			if (value.matches(regex)) {
 				return true;
+			}
+		}
+		if (field != null) {
+			if (field.equalsIgnoreCase("singer") || field.equalsIgnoreCase("singer(s)")) {
+				field = "singers";
 			}
 		}
 		if (tags.size() > 0) {
@@ -122,6 +137,10 @@ public class Track implements Comparable<Track> {
 				String key = (String) it.next();
 				String value = tags.get(key);
 				if (field == null || field.equalsIgnoreCase(key)) {
+					value = Util.replaceSpecialChars(value);
+					if (!caseSensitive) {
+						value = value.toLowerCase();
+					}
 					if (value.matches(regex)) {
 						return true;
 					}

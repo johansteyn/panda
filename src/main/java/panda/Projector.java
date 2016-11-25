@@ -443,7 +443,6 @@ class StreamConsumer extends Thread {
 					// Nothing received from iTunes
 					break;
 				}
-//				line = Util.replaceSpecialChars(line);
 				if (i == 0) {
 					title = line;
 				} else if (i == 1) {
