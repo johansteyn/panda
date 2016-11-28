@@ -26,20 +26,12 @@ public class Track implements Comparable<Track> {
 	private Player player;			// If null then file does not exist
 	private String filename;		// If null then it is not in library
 	private String title;			// Up to 32 characters
-//	private String orchestra;		// Up to 32 characters
-//	private List<String> singers;	// Up to 32 characters each
-//	private String genre;			// Up to 8 alphabetic letters
-//	private int year;				// Between 1900 and 2100
-//	private int bpm;				// Between 0 and 200
-//	private String comment;			// Up to 128 characters
 	private Map<String, String> tags = new HashMap<String, String>();;
 	private boolean checked = true;	// Flag to indicate if checbox in UI is selected
 
 	public Track(String filename) throws IOException, UnsupportedAudioFileException {
 		this.filename = filename;
 		this.player = new Player(this);
-//		// By default, the track title will be the same as the filename until we find a title tag and set it afterwards
-//		this.title = filename;
 	}
 
 	public Player getPlayer() {
@@ -105,103 +97,8 @@ public class Track implements Comparable<Track> {
 		return sb.toString();
 	}
 
-	// Returns true if either the specified field or else any field matches the regex pattern.
-	// Note that the field is compared in a simple, case-insensitive manner, 
-	// while the regex pattern is matched in a case-sensitive manner.
-	// Note: Special letters (eg: ñáéíóú) are treated as their equivalent normal letters (eg: naeiou)
-	public boolean matches(String field, String regex, boolean caseSensitive) {
-		if (regex == null || regex.equals("")) {
-			return false;
-		}
-		if (!caseSensitive) {
-			regex = regex.toLowerCase();
-		}
-		if (field == null || field.equalsIgnoreCase("title")) {
-			String value = Util.replaceSpecialChars(title);
-			if (!caseSensitive) {
-				value = value.toLowerCase();
-			}
-			if (value.matches(regex)) {
-				return true;
-			}
-		}
-		if (field != null) {
-			if (field.equalsIgnoreCase("singer") || field.equalsIgnoreCase("singer(s)")) {
-				field = "singers";
-			}
-		}
-		if (tags.size() > 0) {
-			Set set = tags.keySet();
-			Iterator it = set.iterator();
-			while (it.hasNext()) {
-				String key = (String) it.next();
-				String value = tags.get(key);
-				if (field == null || field.equalsIgnoreCase(key)) {
-					value = Util.replaceSpecialChars(value);
-					if (!caseSensitive) {
-						value = value.toLowerCase();
-					}
-					if (value.matches(regex)) {
-						return true;
-					}
-				}
-			}
-		}
-		return false;
-	}
-
-
 	public int compareTo(Track that) {
 		return this.title.compareTo(that.title);
 	}
-/*
-	public String getOrchestra() {
-		return orchestra;
-	}
-
-	public void setOrchestra(String orchestra) {
-		this.orchestra = orchestra;
-	}
-
-	public List<String> getSingers() {
-		return singers;
-	}
-
-	public void setSingers(List<String> singers) {
-		this.singers = singers;
-	}
-
-	public String getGenre() {
-		return genre;
-	}
-
-	public void setGenre(String genre) {
-		this.genre = genre;
-	}
-
-	public int getYear() {
-		return year;
-	}
-
-	public void setYear(int year) {
-		this.year = year;
-	}
-
-	public int getBPM() {
-		return bpm;
-	}
-
-	public void setBPM(int bpm) {
-		this.bpm = bpm;
-	}
-
-	public String getComment() {
-		return comment;
-	}
-
-	public void setComment(String comment) {
-		this.comment = comment;
-	}
-*/
 }
 

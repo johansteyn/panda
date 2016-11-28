@@ -37,6 +37,7 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.Vector;
 import java.util.logging.Level;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import javax.sound.sampled.*;
@@ -50,7 +51,6 @@ import javax.swing.tree.*;
 
 
 // TODO: 
-// - CTRL-C and CTRL-N to display Current and Next tracks
 // - Make the table row select colour configurable (default being whatever the LAF dictates)
 //   Normally I would leave this entirely up to the LAF, but with user being able to configure track colours it makes sense to make this configurable too...
 public class Panda extends JFrame {
@@ -101,7 +101,7 @@ public class Panda extends JFrame {
 	private JButton logoButton = new ImageButton("panda-logo-transparent-064.png");
 	private JPopupMenu logoPopupMenu = new JPopupMenu();
 	private JPopupMenu tablePopupMenu = new JPopupMenu();
-	// TODO: Keyboard shortcuts for menu items...
+	// TODO: Keyboard shortcuts for menu items?
 	private JCheckBoxMenuItem projectorMenuItem = new JCheckBoxMenuItem("Projector", false);
 	private JMenuItem quitMenuItem = new JMenuItem("Quit");
 	private JMenuItem playNowMenuItem = new JMenuItem("Play now");
@@ -317,7 +317,6 @@ public class Panda extends JFrame {
 			frame.setIconImages(iconImages);
 			frame.setVisible(true);
 		}
-		panda.playButton.requestFocusInWindow();
 		// Note: Need to set divider location here, after having made the UI visible
 		panda.splitPane.setDividerLocation(0.25);
 	}
@@ -390,7 +389,7 @@ public class Panda extends JFrame {
 				filenames.add(filename);
 			}
 		}
-		// TODO: Sort filenames so that the tags file is sorted
+		// Sort filenames so that the tags file is sorted
 		Collections.sort(filenames);
 	}
 
@@ -445,10 +444,6 @@ public class Panda extends JFrame {
 							positionSlider.setValue(player.getPosition());
 						}
 					});
-					// Track is playing, so to be safe, have play button grab focus, but not if some other component needs to retain focus
-					if (!filterField.hasFocus() && !equalizerPresets.hasFocus()) {
-						playButton.requestFocusInWindow();
-					}
 				}
 			});
 			trackMap.put(filename, track);
@@ -624,11 +619,11 @@ public class Panda extends JFrame {
 			equalizerSliders.add(slider);
 		}
 		// ToolTips
-		ToolTipManager ttm = ToolTipManager.sharedInstance();
-		ttm.setInitialDelay(0);
-		equalizerCheckbox.setToolTipText("Equalizer disabled");
-		filterCheckbox.setToolTipText("Case-insensitive");
-		// I find tooltips to be annoying here...
+		// I find tooltips to be annoying...
+		//ToolTipManager ttm = ToolTipManager.sharedInstance();
+		//ttm.setInitialDelay(0);
+		//equalizerCheckbox.setToolTipText("Equalizer disabled");
+		//filterCheckbox.setToolTipText("Case-insensitive");
 		//showCurrentTrackButton.setToolTipText("Now Playing");
 		//showNextTrackButton.setToolTipText("Next Track");
 		//showNextCortinaButton.setToolTipText("Next Cortina");
@@ -1011,7 +1006,7 @@ public class Panda extends JFrame {
 		filterPanel.add(filterCheckbox, BorderLayout.EAST);
 		JPanel infoFilterPanel = new JPanel(new BorderLayout());
 		infoFilterPanel.add(statusLabel);
-		infoFilterPanel.add(filterPanel, BorderLayout.EAST);
+		infoFilterPanel.add(filterPanel, BorderLayout.WEST);
 		rightPanel.add(tableScrollPane);
 		rightPanel.add(infoFilterPanel, BorderLayout.SOUTH);
 		if (layout == 3) {
@@ -1186,7 +1181,6 @@ System.out.println("*** SPACE");
 				PandaTableModel model = (PandaTableModel) table.getModel();
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
-				playButton.requestFocusInWindow();
 				refresh();
 				updateProjector();
 				setPaused(false);
@@ -1203,7 +1197,6 @@ System.out.println("*** SPACE");
 				PandaTableModel model = (PandaTableModel) table.getModel();
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
-				playButton.requestFocusInWindow();
 				refresh();
 				updateProjector();
 			}
@@ -1225,7 +1218,6 @@ System.out.println("*** SPACE");
 				PandaTableModel model = (PandaTableModel) table.getModel();
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
-				playButton.requestFocusInWindow();
 				refresh();
 				updateProjector();
 			}
@@ -1249,7 +1241,6 @@ System.out.println("*** SPACE");
 				PandaTableModel model = (PandaTableModel) table.getModel();
 				model.setValueAt(new Boolean(true), row, 0);
 				table.clearSelection();
-				playButton.requestFocusInWindow();
 				refresh();
 				updateProjector();
 			}
@@ -1282,7 +1273,6 @@ System.out.println("*** SPACE");
 		selectNoneMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				table.clearSelection();
-				playButton.requestFocusInWindow();
 			}
 		});
 		playButton.addActionListener(new ActionListener() {
@@ -1331,6 +1321,34 @@ System.out.println("*** SPACE");
 				}
 			}
 		});
+/*
+		// Add MouseMotionListener to update tooltip
+		MouseMotionListener mml = new MouseMotionListener() {
+			public void mouseMoved(MouseEvent e) {
+				ToolTipManager ttm = ToolTipManager.sharedInstance();
+				long time = System.currentTimeMillis() - ttm.getInitialDelay() + 1;  // So that the tooltip will trigger immediately
+				// Translate the X-coordinate into a slider position...
+				int position =  e.getX() * getMaximum() / getWidth();
+				setToolTipText(Util.minutesSeconds(position));
+			}
+			public void mouseDragged(MouseEvent e) {
+			}
+		};
+		positionSlider.addMouseMotionListener(mml);
+*/
+		positionSlider.addMouseMotionListener(new MouseMotionListener() {
+			public void mouseMoved(MouseEvent e) {
+				ToolTipManager ttm = ToolTipManager.sharedInstance();
+				long time = System.currentTimeMillis() - ttm.getInitialDelay() + 1;  // So that the tooltip will trigger immediately
+				// Translate the X-coordinate into a slider position...
+				int position =  e.getX() * positionSlider.getMaximum() / positionSlider.getWidth();
+				positionSlider.setToolTipText(Util.minutesSeconds(position));
+			}
+			public void mouseDragged(MouseEvent e) {
+			}
+		});
+
+
 		volumeSlider.addChangeListener(new ChangeListener() {
 			public void stateChanged(ChangeEvent e) {
 				int newValue = volumeSlider.getValue();
@@ -1456,20 +1474,10 @@ System.out.println("*** SPACE");
 		equalizerCheckbox.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				Player.setEqualizerEnabled(equalizerCheckbox.isSelected());
-				if (equalizerCheckbox.isSelected()) {
-					equalizerCheckbox.setToolTipText("Equalizer enabled");
-				} else {
-					equalizerCheckbox.setToolTipText("Equalizer disabled");
-				}
 			}
 		});
 		filterCheckbox.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				if (filterCheckbox.isSelected()) {
-					filterCheckbox.setToolTipText("Case-sensitive");
-				} else {
-					filterCheckbox.setToolTipText("Case-insensitive");
-				}
 				filter();
 			}
 		});
@@ -1522,7 +1530,6 @@ System.out.println("*** SPACE");
 	}
 
 	private void filter() {
-//System.out.println("*** Filtering...");
 		String text = filterField.getText();
 		text = text.trim();
 		if (text.equals(FILTER_TEXT)) {
@@ -1820,9 +1827,33 @@ System.out.println("*** SPACE");
 
 	private void refresh() {
 		if (filter != null && filter.length() > 0) {
+			filter = Util.replaceSpecialChars(filter);
 			TableModel tableModel = table.getModel();
 			TableRowSorter<TableModel> sorter = new TableRowSorter<TableModel>(tableModel);
-			sorter.setRowFilter(RowFilter.regexFilter(filter));
+			RowFilter<Object, Object> rowFilter = new RowFilter<Object, Object>() {
+				public boolean include(Entry<? extends Object, ? extends Object> entry) {
+					Pattern pattern = null;
+					int flags = Pattern.CANON_EQ;  // Doesn't work as expected, so use replaceSpecialChars
+					if (!filterCheckbox.isSelected()) {
+						flags = flags | Pattern.CASE_INSENSITIVE;
+					}
+					try {
+						pattern = Pattern.compile(filter, flags);
+					} catch (PatternSyntaxException pse) {
+						return false;
+					}
+					for (int i = 0; i <= entry.getValueCount() - 1; i++) {
+						String value = entry.getStringValue(i);
+						value = Util.replaceSpecialChars(value);
+						Matcher matcher = pattern.matcher(value);
+						if (matcher.find()) {
+							return true;
+						}
+					}
+					return false;
+				}
+			};
+			sorter.setRowFilter(rowFilter);
 			table.setRowSorter(sorter);
 		} else {
 			// Turn sorting off
@@ -2260,7 +2291,7 @@ System.out.println("*** SPACE");
 			String column = getColumnName(col);
 			if (col == 0) {
 				// Special column
-				object = Boolean.valueOf(track.isChecked());  // TODO: NullPointerException
+				object = Boolean.valueOf(track.isChecked());
 			} else if (column.equals("Title")) {
 				object = track.getTitle(); 
 			} else if (column.equals("Time")) {
@@ -2531,11 +2562,11 @@ class ImageButton extends JButton {
 	}
 }
 
-// Moves slider to exact position where mouse is clicked.
+// A slider that moves to the exact position where mouse is clicked.
 class PositionSlider extends JSlider {
 	static boolean initialized;
 
-	public PositionSlider(int orientation) {
+	public PositionSlider(final int orientation) {
 		super(orientation);
 		// Remove existing mouse listeners
 		MouseListener[] listeners = getMouseListeners();
@@ -2547,8 +2578,11 @@ class PositionSlider extends JSlider {
 		BasicSliderUI.TrackListener trackListener = ui.new TrackListener() {
 			@Override public void mouseClicked(MouseEvent event) {
 				Point point = event.getPoint();
-				int value = ui.valueForXPosition(point.x);
-				setValue(value);
+				if (orientation == SwingConstants.HORIZONTAL) {
+					setValue(ui.valueForXPosition(point.x));
+				} else {
+					setValue(ui.valueForYPosition(point.y));
+				}
 			}
 			// Disable check that will invoke scrollDueToClickInTrack
 			@Override public boolean shouldScroll(int dir) {
@@ -2556,21 +2590,6 @@ class PositionSlider extends JSlider {
 			}
 		};
 		addMouseListener(trackListener);
-
-		// Add MouseMotionListener to update tooltip
-		MouseMotionListener mml = new MouseMotionListener() {
-			public void mouseMoved(MouseEvent e) {
-				ToolTipManager ttm = ToolTipManager.sharedInstance();
-				long time = System.currentTimeMillis() - ttm.getInitialDelay() + 1;  // So that the tooltip will trigger immediately
-				// Translate the X-coordinate into a slider position...
-				int position =  e.getX() * getMaximum() / getWidth();
-				setToolTipText(Util.minutesSeconds(position));
-			}
-			public void mouseDragged(MouseEvent e) {
-			}
-		};
-		addMouseMotionListener(mml);
-
 		// By default, all sliders will range from -10 to 10
 		setMinimum(-10);
 		setMaximum(10);
@@ -2578,42 +2597,7 @@ class PositionSlider extends JSlider {
 	}
 }
 
-// Consumes mouse events that occur outside of thumb in order to prevent accidentally setting slider
-class SafeSlider extends JSlider {
-	static boolean initialized;
-
-	public SafeSlider(int orientation) {
-		super(orientation);
-		if (!initialized) {
-			Toolkit toolkit = getToolkit();
-			toolkit.addAWTEventListener(new AWTEventListener() {
-				public void eventDispatched(AWTEvent e) {
-					Object source = e.getSource();
-					if (e instanceof MouseEvent && source instanceof SafeSlider) {
-						MouseEvent me = (MouseEvent) e;
-						SafeSlider slider = (SafeSlider) source;
-						BasicSliderUI bsui = (BasicSliderUI) slider.getUI();
-						int mouseValue = bsui.valueForXPosition(me.getPoint().x);
-						if (slider.getOrientation() == SwingConstants.VERTICAL) {
-							mouseValue = bsui.valueForYPosition(me.getPoint().y);
-						}
-						int sliderValue = slider.getValue();
-						if (mouseValue < sliderValue - 1 || mouseValue > sliderValue + 1) {
-							me.consume();
-						}
-					}
-				}
-			}, AWTEvent.MOUSE_EVENT_MASK);
-		}
-		// By default, all sliders will range from -10 to 10
-		setMinimum(-10);
-		setMaximum(10);
-		setValue(0);
-	}
-}
-
-
-class CustomSlider extends SafeSlider {
+class CustomSlider extends PositionSlider {
 	public CustomSlider(int orientation) {
 		super(orientation);
 		// Tried to reduce space in GTK LAF, but seems to have no effect...
