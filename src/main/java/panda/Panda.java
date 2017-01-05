@@ -294,10 +294,6 @@ public class Panda extends JFrame {
 			int height = dimension.height - insets.top - insets.bottom;
 			window.setSize(width, height);
 			window.setLocation(insets.left, insets.top);
-			//int width = dimension.width;
-			//int height = dimension.height;
-			//window.setSize(width, height);
-			//window.setLocation(posX, posY);
 			window.setIconImages(iconImages);
 			window.setVisible(true);
 		} else {
@@ -317,8 +313,6 @@ public class Panda extends JFrame {
 			frame.setIconImages(iconImages);
 			frame.setVisible(true);
 		}
-		// Note: Need to set divider location here, after having made the UI visible
-		panda.splitPane.setDividerLocation(0.25);
 	}
 
 	public Panda(Container contentPane) throws IOException, UnsupportedAudioFileException {
@@ -1022,8 +1016,9 @@ public class Panda extends JFrame {
 //			rightPanel.add(equalizerBox, BorderLayout.SOUTH);
 //		}
 
-		splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
+		splitPane = new CustomSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
 		splitPane.setDividerSize(4);
+		splitPane.setDividerLocation(0.25);
 
 		JPanel topBox = new JPanel(new BorderLayout());
 		topBox.add(controlBox1);
@@ -2693,6 +2688,40 @@ class PresetComboBox extends JComboBox {
 		Dimension d = getMinimumSize();
 		d.height = 2 * d.height;
 		return d;
+	}
+}
+
+// Hack to make setDividerLocation effective whether or not the split pane is visible
+class CustomSplitPane extends JSplitPane {
+	public CustomSplitPane(int newOrientation, Component newLeftComponent, Component newRightComponent) {
+		super(newOrientation, newLeftComponent, newRightComponent);
+	}
+
+	@Override
+	public void setDividerLocation(final double proportion) {
+		if (isShowing()) {
+			if (getWidth() > 0 && getHeight() > 0) {
+				super.setDividerLocation(proportion);
+			} else {
+				addComponentListener(new ComponentAdapter() {
+					@Override
+					public void componentResized(ComponentEvent event) {
+						removeComponentListener(this);
+						setDividerLocation(proportion);
+					}
+				});
+			}
+		} else {
+			addHierarchyListener(new HierarchyListener() {
+				@Override
+				public void hierarchyChanged(HierarchyEvent event) {
+					if ((event.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && isShowing()) {
+						removeHierarchyListener(this);
+						setDividerLocation(proportion);
+					}
+				}
+			});
+		}
 	}
 }
 
