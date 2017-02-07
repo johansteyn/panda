@@ -287,7 +287,6 @@ ioe.printStackTrace();
 	}
 
 	// Make component's foreground (ie. text) either black or white, depending on how light or dark the background is
-//	public static void setTextColor(Component component, Color background) {
 	public static void setTextColor(Component component) {
 		Color background = component.getBackground();
 		int r = background.getRed();
@@ -298,6 +297,81 @@ ioe.printStackTrace();
 		} else {
 			component.setForeground(Color.WHITE);
 		}
+	}
+
+	// The Java Color class has "darker" and "lighter" methods, but they result in progressively greyer colors.
+	// This method will determine which component is the dominant one (if any) and increase it while reducing the other two.
+	public static Color intensify(Color color) {
+		int r = color.getRed();
+		int g = color.getGreen();
+		int b = color.getBlue();
+		int a = color.getAlpha();
+		if (r == g && g == b) {
+			return color;
+		}
+		int amount = 50;
+		if (r > g && r > b) {
+			// RED
+			r = increase(r, amount);
+			g = decrease(g, amount);
+			b = decrease(b, amount);
+		} else if (g > r && g > b) {
+			// GREEN
+			r = decrease(r, amount);
+			g = increase(g, amount);
+			b = decrease(b, amount);
+		} else if (b > r && b > g) {
+			// BLUE
+			r = decrease(r, amount);
+			g = decrease(g, amount);
+			b = increase(b, amount);
+		} else if (r == g && r > b) {
+			// YELLOW
+			r = increase(r, amount);
+			g = increase(g, amount);
+			b = decrease(b, amount);
+		} else if (r == b && r > g) {
+			// MAGENTA
+			r = increase(r, amount);
+			g = decrease(g, amount);
+			b = increase(b, amount);
+		} else if (g == b && g > r) {
+			// CYAN
+			r = decrease(r, amount);
+			g = increase(g, amount);
+			b = increase(b, amount);
+		}
+		return new Color(r, g, b, a);
+	}
+
+	private Color merge(Color color1, Color color2) {
+		int r1 = color1.getRed();
+		int g1 = color1.getGreen();
+		int b1 = color1.getBlue();
+		int a1 = color1.getAlpha();
+		int r2 = color2.getRed();
+		int g2 = color2.getGreen();
+		int b2 = color2.getBlue();
+		int a2 = color2.getAlpha();
+		return new Color((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2, (a1 + a2) / 2);
+	}
+
+	// Increase by specified amount (of 255), up to maximum of 255
+	private static int increase(int i, int amount) {
+		i = i + amount;
+		if (i > 255) {
+			i = 255;
+		}
+		return i;
+	}
+
+	// Decrease by specified amount, down to minimum of 0
+	private static int decrease(int i, int amount) {
+		i = i - amount;
+		if (i < 0) {
+			i = 0;
+		}
+		return i;
 	}
 
 	public static long dump(InputStream is, OutputStream os) throws IOException {

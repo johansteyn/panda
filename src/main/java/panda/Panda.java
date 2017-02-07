@@ -448,7 +448,7 @@ public class Panda extends JFrame {
 	}
 
 	// Read tags from the Panda tag file
-	private void readTags() throws IOException {
+	private void readTags() throws IOException, UnsupportedAudioFileException {
 		Util.log(Level.INFO, "Reading tags...");
 		long start = Util.startTimer();
 		String filename = Util.PANDA_HOME + "panda.tags";
@@ -477,6 +477,10 @@ public class Panda extends JFrame {
 					if (track == null) {
 						// Tags found for file that doesn't exist
 						Util.log(Level.SEVERE, "File not found for tag entry: " + filename);
+						filenames.add(filename);
+						track = new Track(filename, true);
+						trackMap.put(filename, track);
+						currentTrackPlaylist.add(track);
 					}
 					continue;
 				}
@@ -744,81 +748,6 @@ public class Panda extends JFrame {
 			}
 		}
 		return def;
-	}
-
-	// The Java Color class has "darker" and "lighter" methods, but they result in progressively greyer colors.
-	// This method will determine which component is the dominant one (if any) and increase it while reducing the other two.
-	private Color intensify(Color color) {
-		int r = color.getRed();
-		int g = color.getGreen();
-		int b = color.getBlue();
-		int a = color.getAlpha();
-		if (r == g && g == b) {
-			return color;
-		}
-		int amount = 50;
-		if (r > g && r > b) {
-			// RED
-			r = increase(r, amount);
-			g = decrease(g, amount);
-			b = decrease(b, amount);
-		} else if (g > r && g > b) {
-			// GREEN
-			r = decrease(r, amount);
-			g = increase(g, amount);
-			b = decrease(b, amount);
-		} else if (b > r && b > g) {
-			// BLUE
-			r = decrease(r, amount);
-			g = decrease(g, amount);
-			b = increase(b, amount);
-		} else if (r == g && r > b) {
-			// YELLOW
-			r = increase(r, amount);
-			g = increase(g, amount);
-			b = decrease(b, amount);
-		} else if (r == b && r > g) {
-			// MAGENTA
-			r = increase(r, amount);
-			g = decrease(g, amount);
-			b = increase(b, amount);
-		} else if (g == b && g > r) {
-			// CYAN
-			r = decrease(r, amount);
-			g = increase(g, amount);
-			b = increase(b, amount);
-		}
-		return new Color(r, g, b, a);
-	}
-
-	private Color merge(Color color1, Color color2) {
-		int r1 = color1.getRed();
-		int g1 = color1.getGreen();
-		int b1 = color1.getBlue();
-		int a1 = color1.getAlpha();
-		int r2 = color2.getRed();
-		int g2 = color2.getGreen();
-		int b2 = color2.getBlue();
-		int a2 = color2.getAlpha();
-		return new Color((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2, (a1 + a2) / 2);
-	}
-
-	// Increase by specified amount (of 255), up to maximum of 255
-	private int increase(int i, int amount) {
-		i = i + amount;
-		if (i > 255) {
-			i = 255;
-		}
-		return i;
-	}
-
-	// Decrease by specified amount, down to minimum of 0
-	private int decrease(int i, int amount) {
-		i = i - amount;
-		if (i < 0) {
-			i = 0;
-		}
-		return i;
 	}
 
 	// Returns the configured number of the column
@@ -1126,25 +1055,29 @@ System.out.println("*** SPACE");
 				nextTrackMenuItem.setEnabled(false);
 				nextCortinaMenuItem.setEnabled(false);
 				nextTandaMenuItem.setEnabled(false);
-				if (table.getSelectedRowCount() == 1 && clickedSelectedRow) {
-					// Only enable these menu items if:
-					// - Exactly one row was selected
-					// - The clicked row is the selected row
-					// - Plus further criteria...
-					if (Player.isPaused()) {
-						// Only enable "play now" if the player is in paused state
-						playNowMenuItem.setEnabled(true);
-					}
-					int modelRow = table.convertRowIndexToModel(row);
-					if (displayPlaylist != currentTrackPlaylist || modelRow != currentTrackIndex) {
-						// Only enable "next" options if this is not the current track
-						nextTrackMenuItem.setEnabled(true);
-						if (isCortina(modelRow, displayPlaylist)) {
-							// Only enable "next cortina" if it can be used as a cortina
-							nextCortinaMenuItem.setEnabled(true);
-						} else {
-							// Else enable "next tanda", ie. a track can be either next cortina or next tanda, but not both.
-							nextTandaMenuItem.setEnabled(true);
+
+				PandaTableModel model = (PandaTableModel) table.getModel();
+				int modelRow = table.convertRowIndexToModel(row);
+				if (!model.isMissing(modelRow)) {
+					if (table.getSelectedRowCount() == 1 && clickedSelectedRow) {
+						// Only enable these menu items if:
+						// - Exactly one row was selected
+						// - The clicked row is the selected row
+						// - Plus further criteria...
+						if (Player.isPaused()) {
+							// Only enable "play now" if the player is in paused state
+							playNowMenuItem.setEnabled(true);
+						}
+						if (displayPlaylist != currentTrackPlaylist || modelRow != currentTrackIndex) {
+							// Only enable "next" options if this is not the current track
+							nextTrackMenuItem.setEnabled(true);
+							if (isCortina(modelRow, displayPlaylist)) {
+								// Only enable "next cortina" if it can be used as a cortina
+								nextCortinaMenuItem.setEnabled(true);
+							} else {
+								// Else enable "next tanda", ie. a track can be either next cortina or next tanda, but not both.
+								nextTandaMenuItem.setEnabled(true);
+							}
 						}
 					}
 				}
@@ -1624,7 +1557,7 @@ System.out.println("*** SPACE");
 		int next = -1;
 		for (int i = index + 1; i < playlist.size(); i++) {
 			Track track = playlist.get(i);
-			if (track.isChecked()) {
+			if (track.isChecked() && !track.isMissing()) {
 				next = i;
 				break;
 			}
@@ -1954,6 +1887,9 @@ System.out.println("*** SPACE");
 				continue;
 			}
 			pw.println("#-------------------------------------------------------------------------------");
+			if (track.isMissing()) {
+				pw.println("#                 !!!!!!!!!!!! MISSING FILE !!!!!!!!!!!!");
+			}
 			pw.println("file=" + filename);
 			pw.println("title=" + track.getTitle());
 			Set set = tags.keySet();
@@ -2184,7 +2120,7 @@ System.out.println("*** SPACE");
 				return;
 			}
 			String playlistName = findPlaylistName(playlist);
-			if (playlistName.indexOf(name) >= 0) {
+			if (playlistName.endsWith(name)) {
 				panel.setBackground(color);
 				label.setBackground(color);
 			}
@@ -2212,32 +2148,37 @@ System.out.println("*** SPACE");
 			// Need to set opaque in order for background color to show
 			component.setOpaque(true);
 			Color color = Color.WHITE;
-			String genre = model.getGenre(modelRow);
-			if (genreColors.containsKey(genre)) {
-				color = genreColors.get(genre);
-			}
-			if (displayPlaylist == nextTandaPlaylist) {
-				if (modelRow == Panda.this.nextTandaIndex) {
-					color = nextTandaColor;
+			if (model.isMissing(modelRow)) {
+				component.setBackground(Color.LIGHT_GRAY);
+				component.setForeground(Color.WHITE);
+			} else {
+				String genre = model.getGenre(modelRow);
+				if (genreColors.containsKey(genre)) {
+					color = genreColors.get(genre);
 				}
-			}
-			if (displayPlaylist == nextCortinaPlaylist) {
-				if (modelRow == Panda.this.nextCortinaIndex) {
-					color = nextCortinaColor;
+				if (displayPlaylist == nextTandaPlaylist) {
+					if (modelRow == Panda.this.nextTandaIndex) {
+						color = nextTandaColor;
+					}
 				}
-			}
-			if (displayPlaylist == nextTrackPlaylist) {
-				if (modelRow == Panda.this.nextTrackIndex) {
-					color = nextTrackColor;
+				if (displayPlaylist == nextCortinaPlaylist) {
+					if (modelRow == Panda.this.nextCortinaIndex) {
+						color = nextCortinaColor;
+					}
 				}
-			}
-			if (displayPlaylist == currentTrackPlaylist) {
-				if (modelRow == Panda.this.currentTrackIndex) {
-					color = currentTrackColor;
+				if (displayPlaylist == nextTrackPlaylist) {
+					if (modelRow == Panda.this.nextTrackIndex) {
+						color = nextTrackColor;
+					}
 				}
+				if (displayPlaylist == currentTrackPlaylist) {
+					if (modelRow == Panda.this.currentTrackIndex) {
+						color = currentTrackColor;
+					}
+				}
+				component.setBackground(color);
+				Util.setTextColor(component);
 			}
-			component.setBackground(color);
-			Util.setTextColor(component);
 			return component;
 		}
 	}
@@ -2286,7 +2227,11 @@ System.out.println("*** SPACE");
 			String column = getColumnName(col);
 			if (col == 0) {
 				// Special column
-				object = Boolean.valueOf(track.isChecked());
+				if (track.isMissing()) {
+					object = Boolean.valueOf(false);
+				} else {
+					object = Boolean.valueOf(track.isChecked());
+				}
 			} else if (column.equals("Title")) {
 				object = track.getTitle(); 
 			} else if (column.equals("Time")) {
@@ -2316,6 +2261,11 @@ System.out.println("*** SPACE");
 			Track track = playlist.get(row);
 			String genre = track.getTag("genre"); 
 			return genre;
+		}
+
+		public boolean isMissing(int row) {
+			Track track = playlist.get(row);
+			return track.isMissing();
 		}
 
 		// TODO: Add a "readonly" feature where every cell is made un-editable

@@ -28,10 +28,19 @@ public class Track implements Comparable<Track> {
 	private String title;			// Up to 32 characters
 	private Map<String, String> tags = new HashMap<String, String>();;
 	private boolean checked = true;	// Flag to indicate if checbox in UI is selected
+	private boolean missing;		// Flag to indicate that the file is missing
 
 	public Track(String filename) throws IOException, UnsupportedAudioFileException {
 		this.filename = filename;
 		this.player = new Player(this);
+	}
+
+	public Track(String filename, boolean missing) {
+		if (!missing) {
+			throw new IllegalArgumentException("Wrong constructor called for Track!");
+		}
+		this.filename = filename;
+		setMissing(true);
 	}
 
 	public Player getPlayer() {
@@ -71,6 +80,17 @@ public class Track implements Comparable<Track> {
 
 	public boolean isChecked() {
 		return checked;
+	}
+
+	public void setMissing(boolean value) {
+		missing = value;
+		if (missing) {
+			checked = false;
+		}
+	}
+
+	public boolean isMissing() {
+		return missing;
 	}
 
 	public String toString() {
