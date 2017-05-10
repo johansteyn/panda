@@ -54,22 +54,12 @@ import javax.swing.tree.*;
 // - Make the table row select colour configurable (default being whatever the LAF dictates)
 //   Normally I would leave this entirely up to the LAF, but with user being able to configure track colours it makes sense to make this configurable too...
 public class Panda extends JFrame {
-	public static final String TRACKS_DIR;  // Absolute path, ending with a file separator
-	public static final int BANDS;
-	private static final boolean FULLSCREEN;
-	public static final int WAIT;
+	public static final String TRACKS;  // Absolute path, ending with a file separator
 	private static SplashScreen splash = SplashScreen.getSplashScreen();
 	private static Graphics2D splashGraphics;
 	private static String FILTER_TEXT = "Filter..."; // Default filter text
 
 	private static List<Image> iconImages = new ArrayList<Image>();
-
-	// Track colors
-	private static Color currentTrackColor = Color.RED;
-	private static Color nextTrackColor = Color.GREEN;
-	private static Color nextCortinaColor = Color.YELLOW;
-	private static Color nextTandaColor = Color.BLUE;
-	private static Map<String,Color> genreColors = new HashMap<String,Color>();
 
 	private static int defaultModifier; // The platform-specific key modifier, eg: CTRL on Linux/Windows or CMD on Mac
 
@@ -144,14 +134,14 @@ public class Panda extends JFrame {
 	private String filter;
 
 	static {
-		// Ensure properties are loaded first by referencing Util class...
+		long start = Util.startTimer();
+		// Ensure configuration is loaded first by referencing Util class...
 		Util.log(Level.INFO, "Initializing Panda...");
 		updateSplash("Initializing Panda...");
 
-		String dirname = System.getProperty("panda.tracks.directory");
-		if (dirname == null) {
-			// Not configured, so use default
-			dirname = Util.PANDA_HOME + "tracks";
+		String dirname = Config.tracks;
+		if (dirname.indexOf(File.separator) < 0) {
+			dirname = Config.PANDA_HOME + dirname;
 		}
 		// Ensure configured/default directory exists
 		File dir = new File(dirname);
@@ -163,66 +153,12 @@ public class Panda extends JFrame {
 		if (dirname.charAt(dirname.length() - 1) != File.separatorChar) {
 			dirname += File.separator;
 		}
-		TRACKS_DIR = dirname;
-		Util.log(Level.INFO, "Scanning tracks directory: " + TRACKS_DIR);
-
-		String fullscreen = System.getProperty("panda.gui.fullscreen");
-		if (fullscreen != null && fullscreen.equals("true")) {
-			FULLSCREEN = true;
-		} else {
-			FULLSCREEN = false;
-		}
-
-		int bands = 10;
-		String key = "panda.equalizer.bands";
-		String value = System.getProperty(key);
-		if (value != null) {
-			try {
-				bands = Integer.parseInt(value);
-			} catch (NumberFormatException nfe) {
-				bands = -1;
-			}
-		}
-		if (bands != 10 && bands != 15 && bands != 25 && bands != 31) {
-			Util.log(Level.INFO, "Invalid value for property " + key + ": " + value);
-		}
-		BANDS = bands;
-
-		int wait = 0;
-		key = "panda.wait";
-		value = System.getProperty(key);
-		if (value != null) {
-			try {
-				wait = Integer.parseInt(value);
-			} catch (NumberFormatException nfe) {
-				wait = -1;
-			}
-		}
-		if (wait < 0 || wait > 10) {
-			Util.log(Level.INFO, "Invalid value for property " + key + ": " + value);
-		}
-		WAIT = wait;
-
-		currentTrackColor = getColor("panda.colour.currentTrack", currentTrackColor);
-		nextTrackColor = getColor("panda.colour.nextTrack", nextTrackColor);
-		nextCortinaColor = getColor("panda.colour.nextCortina", nextCortinaColor);
-		nextTandaColor = getColor("panda.colour.nextTanda", nextTandaColor);
-		Properties properties = System.getProperties();
-		Set<String> keys = properties.stringPropertyNames();
-		Iterator iterator = keys.iterator();
-		while (iterator.hasNext()) {
-			key = (String) iterator.next();
-			String s = "panda.colour.track.genre.";
-			if (key.startsWith(s)) {
-				String genre = key.substring(s.length());
-				Color color = getColor(key, Color.WHITE);
-				genreColors.put(genre, color);
-			}
-		}
+		TRACKS = dirname;
 
 		// Ensure that all text is anti-aliased (especially for projector)
 		System.setProperty("awt.useSystemAAFontSettings","on"); 
 		System.setProperty("swing.aatext", "true"); 
+		Util.stopTimer(start, "Initialization");
 	}
 
 	static void updateSplash(String message) {
@@ -250,11 +186,19 @@ public class Panda extends JFrame {
 	}
 
 	public static void main(String[] args) throws Exception {
+		final long jvmStart = Util.startTimer();
+		long start = -1;
+		if (args.length == 1) {
+			try {
+				start = Long.parseLong(args[0]);
+			} catch (NumberFormatException nfe) {
+			}
+		}
+		final long overallStart = start;
 		Util.log(Level.FINE, "Starting Panda...");
 		updateSplash("Starting Panda...");
 		UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-		String guiNative = System.getProperty("panda.gui.native");
-		if (guiNative == null || guiNative.equals("false")) {
+		if (!Config.isNative) {
 			try {
 				UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel");
 			} catch (ClassNotFoundException cnfe) {
@@ -284,7 +228,7 @@ public class Panda extends JFrame {
 		// JFrame:
 		// - On Ubuntu the window controls (close, maximize, minimize) are still displayed (even when setting it undecorated)
 		// + On Ubuntu the task switcher works
-		if (FULLSCREEN) {
+		if (Config.isFullscreen) {
 			JWindow window = new JWindow();
 			Container contentPane = window.getContentPane();
 			panda = new Panda(contentPane);
@@ -308,6 +252,12 @@ public class Panda extends JFrame {
 			frame.addWindowListener(new WindowAdapter() {
 				public void windowClosing(WindowEvent e) {
 					panda.quit();
+				}
+				public void windowOpened(WindowEvent e) {
+					Util.stopTimer(jvmStart, "In-JVM startup");
+					if (overallStart > 0) {
+						Util.stopTimer(overallStart, "Overall startup");
+					}
 				}
 			});
 			frame.setIconImages(iconImages);
@@ -334,7 +284,7 @@ public class Panda extends JFrame {
 				buildUI();
 			}
 		});
-		customPresets = new int[BANDS];
+		customPresets = new int[Config.bands];
 		updateSplash("Starting threads...");
 		playThread.start();
 		saveThread.start();
@@ -347,7 +297,8 @@ public class Panda extends JFrame {
 	// Kicks off scan of tracks directory
 	private void scan() {
 		long start = Util.startTimer();
-		scanDir(new File(TRACKS_DIR));
+		Util.log(Level.INFO, "Scanning tracks directory: " + TRACKS);
+		scanDir(new File(TRACKS));
 		StringBuffer sb = new StringBuffer();
 		for (String filename: filenames) {
 			sb.append(filename);
@@ -378,7 +329,7 @@ public class Panda extends JFrame {
 				continue;
 			}
 			String filename = file.getAbsolutePath();
-			filename = filename.substring(TRACKS_DIR.length());
+			filename = filename.substring(TRACKS.length());
 			if (filename.endsWith(".wav")) {
 				filenames.add(filename);
 			}
@@ -451,7 +402,7 @@ public class Panda extends JFrame {
 	private void readTags() throws IOException, UnsupportedAudioFileException {
 		Util.log(Level.INFO, "Reading tags...");
 		long start = Util.startTimer();
-		String filename = Util.PANDA_HOME + "panda.tags";
+		String filename = Config.PANDA_HOME + "panda.tags";
 		BufferedReader br = null;
 		try {
 			FileInputStream fis = new FileInputStream(filename);
@@ -519,7 +470,7 @@ public class Panda extends JFrame {
 		playlistMap.put("Tracks", currentTrackPlaylist);
 		playlists.add("Tracks");
 		long start = Util.startTimer();
-		String filename = Util.PANDA_HOME + "panda.playlists";
+		String filename = Config.PANDA_HOME + "panda.playlists";
 		BufferedReader br = null;
 		try {
 			FileInputStream fis = new FileInputStream(filename);
@@ -571,10 +522,12 @@ public class Panda extends JFrame {
 	}
 
 	private void buildUI() {
+		long start = Util.startTimer();
 		create();
 		layoutUI();
 		addListeners();
 		//setDebugBorders();
+		Util.stopTimer(start, "Building user interface");
 	}
 
 	private void create() {
@@ -612,7 +565,7 @@ public class Panda extends JFrame {
 		equalizerPresets.addItem("Treble -");
 		equalizerPresets.addItem("Custom");
 		// Equalizer sliders
-		for (int i = 0; i < BANDS; i++) {
+		for (int i = 0; i < Config.bands; i++) {
 			EQSlider slider = new EQSlider();
 			equalizerSliders.add(slider);
 		}
@@ -720,47 +673,18 @@ public class Panda extends JFrame {
 		return null;
 	}
 
-
-	// Returns new Color instance with red, green and blue values for specified property
-	// If property is not defined, or values are invalid, then the default color will be returned
-	private static Color getColor(String key, Color def) {
-		String value = System.getProperty(key);
-		if (value == null) {
-			Util.log(Level.WARNING, "Property " + key + " not defined (Using default value " + def + ")");
-		} else {
-			boolean valid = false;
-			StringTokenizer st = new StringTokenizer(value, ",");
-			if (st.countTokens() == 3) {
-				try {
-					int r = Integer.parseInt(st.nextToken());
-					int g = Integer.parseInt(st.nextToken());
-					int b = Integer.parseInt(st.nextToken());
-					if (r >= 0 && r <= 255 && g >= 0 && g <= 255 && b >= 0 && b <= 255) {
-						def = new Color(r, g, b);
-						valid = true;
-					}
-				} catch (NoSuchElementException nsee) {
-				} catch (NumberFormatException nfe) {
-				}
-			}
-			if (!valid) {
-				Util.log(Level.WARNING, "Invalid value for property " + key + ": " + value + " (Using default value " + def + ")");
-			}
-		}
-		return def;
-	}
-
 	// Returns the configured number of the column
 	// TODO: Move closer to PandaTableColumnModel?
-	private int getColumnNumber(String column) {
-		for (int i = 1; ; i++) {
-			String name = System.getProperty("panda.column." + i);
-			if (name == null) {
-				break;
+	private int getColumnNumber(String name) {
+		if (name == null) {
+			return -1;
+		}
+		int number = 0;
+		for (Config.Column column : Config.columns) {
+			if (name.equals(column.name)) {
+				return number;
 			}
-			if (name.equals(column)) {
-				return i;
-			}
+			number++;
 		}
 		return -1;
 	}
@@ -774,18 +698,6 @@ public class Panda extends JFrame {
 	}
 
 	private void layoutUI() {
-		int layout = 1;
-		String layoutProperty = System.getProperty("panda.gui.layout");
-		if (layoutProperty != null) {
-			if (layoutProperty.equals("2")) {
-				layout = 2;
-			} else if (layoutProperty.equals("3")) {
-				layout = 3;
-			} else if (layoutProperty.equals("4")) {
-				layout = 4;
-			}
-		}
-
 		contentPane.setLayout(new BorderLayout());
 
 		logoPopupMenu.add(projectorMenuItem);
@@ -883,24 +795,24 @@ public class Panda extends JFrame {
 //equalizerBox.setBorder(new LineBorder(Color.red));
 
 		Box controlBox2 = new Box(BoxLayout.X_AXIS);
-		if (layout == 1 || layout == 4) {
+		if (Config.layout == 1 || Config.layout == 4) {
 			controlBox2.add(Box.createHorizontalGlue());
 			controlBox2.add(lvbpBox);
 			controlBox2.add(Box.createHorizontalGlue());
 			controlBox2.add(equalizerBox);
 			controlBox2.add(Box.createHorizontalGlue());
-		} else if (layout == 2) {
+		} else if (Config.layout == 2) {
 			controlBox2 = new Box(BoxLayout.Y_AXIS);
 			controlBox2.add(lvbpBox);
 			controlBox2.add(equalizerBox);
-//		} else if (layout == 4) {
+//		} else if (Config.layout == 4) {
 //			controlBox2.add(lvbpBox);
 		}
 
-		showCurrentTrackButton.setBackground(currentTrackColor);
-		showNextTrackButton.setBackground(nextTrackColor);
-		showNextCortinaButton.setBackground(nextCortinaColor);
-		showNextTandaButton.setBackground(nextTandaColor);
+		showCurrentTrackButton.setBackground(Config.currentTrackColor);
+		showNextTrackButton.setBackground(Config.nextTrackColor);
+		showNextCortinaButton.setBackground(Config.nextCortinaColor);
+		showNextTandaButton.setBackground(Config.nextTandaColor);
 		showCurrentTrackButton.setBorder(new EmptyBorder(8, 0, 8, 0)); // top, left, bottom, right
 		showNextTrackButton.setBorder(new EmptyBorder(8, 0, 8, 0));
 		showNextCortinaButton.setBorder(new EmptyBorder(8, 0, 8, 0));
@@ -932,13 +844,13 @@ public class Panda extends JFrame {
 		infoFilterPanel.add(filterPanel, BorderLayout.WEST);
 		rightPanel.add(tableScrollPane);
 		rightPanel.add(infoFilterPanel, BorderLayout.SOUTH);
-		if (layout == 3) {
+		if (Config.layout == 3) {
 			JPanel p = rightPanel;
 			rightPanel = new JPanel(new BorderLayout());
 			rightPanel.add(p);
 			rightPanel.add(controlBox2, BorderLayout.SOUTH);
 		}
-//		if (layout == 4) {
+//		if (Config.layout == 4) {
 //			JPanel p = rightPanel;
 //			rightPanel = new JPanel(new BorderLayout());
 //			rightPanel.add(p);
@@ -952,16 +864,16 @@ public class Panda extends JFrame {
 		JPanel topBox = new JPanel(new BorderLayout());
 		topBox.add(controlBox1);
 		contentPane.add(topBox, BorderLayout.NORTH);
-		if (layout == 1) {
+		if (Config.layout == 1) {
 			topBox.add(controlBox2, BorderLayout.EAST);
-		} else if (layout == 2) {
+		} else if (Config.layout == 2) {
 			leftPanel.add(controlBox2, BorderLayout.SOUTH);
-		} else if (layout == 3) {
+		} else if (Config.layout == 3) {
 			leftPanel.add(lvbpBox, BorderLayout.SOUTH);
 			equalizerBox.setBorder(new BevelBorder(BevelBorder.RAISED));
 			contentPane.add(equalizerBox, BorderLayout.SOUTH);
 		}
-		if (layout == 4) {
+		if (Config.layout == 4) {
 			controlBox2.setBorder(new BevelBorder(BevelBorder.LOWERED));
 			contentPane.add(controlBox2, BorderLayout.SOUTH);
 		}
@@ -1157,7 +1069,7 @@ System.out.println("*** SPACE");
 				// If the current track is a cortina, then the next tanda immediately becomes the next track
 				Track track = currentTrackPlaylist.get(currentTrackIndex);
 				String genre = track.getTag("genre");
-				if (genre == null || !Util.projectorGenres.contains(genre)) {
+				if (genre == null || !Config.projectorGenres.contains(genre)) {
 					nextTrackIndex = modelRow;
 					nextTrackPlaylist = displayPlaylist;
 					showNextTrackButton.setEnabled(true);
@@ -1326,73 +1238,73 @@ System.out.println("*** SPACE");
 		equalizerPresets.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				String s = (String) equalizerPresets.getSelectedItem();
-				int[] presets = new int[BANDS];
+				int[] presets = new int[Config.bands];
 				if (s.equals("None")) {
 					// Default values of zero will be used
 				} else if (s.equals("Bass +")) {
-					if (BANDS == 10) {
+					if (Config.bands == 10) {
 						presets = Presets.PRESETS_10_BASS_PLUS;
-					} else if (BANDS == 15) {
+					} else if (Config.bands == 15) {
 						presets = Presets.PRESETS_15_BASS_PLUS;
-					} else if (BANDS == 25) {
+					} else if (Config.bands == 25) {
 						presets = Presets.PRESETS_25_BASS_PLUS;
-					} else if (BANDS == 31) {
+					} else if (Config.bands == 31) {
 						presets = Presets.PRESETS_31_BASS_PLUS;
 					}
 				} else if (s.equals("Bass -")) {
-					if (BANDS == 10) {
+					if (Config.bands == 10) {
 						presets = Presets.PRESETS_10_BASS_MINUS;
-					} else if (BANDS == 15) {
+					} else if (Config.bands == 15) {
 						presets = Presets.PRESETS_15_BASS_MINUS;
-					} else if (BANDS == 25) {
+					} else if (Config.bands == 25) {
 						presets = Presets.PRESETS_25_BASS_MINUS;
-					} else if (BANDS == 31) {
+					} else if (Config.bands == 31) {
 						presets = Presets.PRESETS_31_BASS_MINUS;
 					}
 				} else if (s.equals("Mid +")) {
-					if (BANDS == 10) {
+					if (Config.bands == 10) {
 						presets = Presets.PRESETS_10_MID_PLUS;
-					} else if (BANDS == 15) {
+					} else if (Config.bands == 15) {
 						presets = Presets.PRESETS_15_MID_PLUS;
-					} else if (BANDS == 25) {
+					} else if (Config.bands == 25) {
 						presets = Presets.PRESETS_25_MID_PLUS;
-					} else if (BANDS == 31) {
+					} else if (Config.bands == 31) {
 						presets = Presets.PRESETS_31_MID_PLUS;
 					}
 				} else if (s.equals("Mid -")) {
-					if (BANDS == 10) {
+					if (Config.bands == 10) {
 						presets = Presets.PRESETS_10_MID_MINUS;
-					} else if (BANDS == 15) {
+					} else if (Config.bands == 15) {
 						presets = Presets.PRESETS_15_MID_MINUS;
-					} else if (BANDS == 25) {
+					} else if (Config.bands == 25) {
 						presets = Presets.PRESETS_25_MID_MINUS;
-					} else if (BANDS == 31) {
+					} else if (Config.bands == 31) {
 						presets = Presets.PRESETS_31_MID_MINUS;
 					}
 				} else if (s.equals("Treble +")) {
-					if (BANDS == 10) {
+					if (Config.bands == 10) {
 						presets = Presets.PRESETS_10_TREBLE_PLUS;
-					} else if (BANDS == 15) {
+					} else if (Config.bands == 15) {
 						presets = Presets.PRESETS_15_TREBLE_PLUS;
-					} else if (BANDS == 25) {
+					} else if (Config.bands == 25) {
 						presets = Presets.PRESETS_25_TREBLE_PLUS;
-					} else if (BANDS == 31) {
+					} else if (Config.bands == 31) {
 						presets = Presets.PRESETS_31_TREBLE_PLUS;
 					}
 				} else if (s.equals("Treble -")) {
-					if (BANDS == 10) {
+					if (Config.bands == 10) {
 						presets = Presets.PRESETS_10_TREBLE_MINUS;
-					} else if (BANDS == 15) {
+					} else if (Config.bands == 15) {
 						presets = Presets.PRESETS_15_TREBLE_MINUS;
-					} else if (BANDS == 25) {
+					} else if (Config.bands == 25) {
 						presets = Presets.PRESETS_25_TREBLE_MINUS;
-					} else if (BANDS == 31) {
+					} else if (Config.bands == 31) {
 						presets = Presets.PRESETS_31_TREBLE_MINUS;
 					}
 				} else if (s.equals("Custom")) {
 					presets = customPresets;
 				}
-				for (int i = 0; i < BANDS; i++) {
+				for (int i = 0; i < Config.bands; i++) {
 					EQSlider slider = equalizerSliders.get(i);
 					// NOTE: Call adjustValue instead of setValue in order to flag that the slider is being set due to preset selection and not by user directly moving the slider
 					slider.adjustValue(presets[i]);
@@ -1574,7 +1486,7 @@ System.out.println("*** SPACE");
 		}
 		Track track = playlist.get(index);
 		String genre = track.getTag("genre");
-		if (genre == null || !Util.projectorGenres.contains(genre)) {
+		if (genre == null || !Config.projectorGenres.contains(genre)) {
 			return false;
 		}
 		Track previousTrack = playlist.get(index - 1);
@@ -1604,7 +1516,7 @@ System.out.println("*** SPACE");
 		if (genre == null) {
 			return true;
 		}
-		if (Util.projectorGenres.contains(genre)) {
+		if (Config.projectorGenres.contains(genre)) {
 			return false;
 		}
 		return true;
@@ -1639,7 +1551,7 @@ System.out.println("*** SPACE");
 		boolean useDefaults = true;
 		Track track = currentTrackPlaylist.get(currentTrackIndex);
 		String genre = track.getTag("genre");
-		if (genre != null && Util.projectorGenres.contains(genre)) {
+		if (genre != null && Config.projectorGenres.contains(genre)) {
 			Player player = track.getPlayer();
 			if (player != null && !player.isPaused()) {
 				// Only display track info if current track is actually playing one of the configured genres
@@ -1648,13 +1560,13 @@ System.out.println("*** SPACE");
 		}
 		if (useDefaults) {
 			projector.setDefaults();
-			if (!Util.projectorGenres.contains(genre)) {
+			if (!Config.projectorGenres.contains(genre)) {
 				projector.setFooter(nextTanda());
 			}
 			return;
 		}
 		String orchestra = track.getTag("orchestra");
-		String header = System.getProperty("panda.projector.map." + orchestra);
+		String header = Config.projectorOrchestras.get(orchestra);
 		if (header == null) {
 			header = orchestra;
 		}
@@ -1685,7 +1597,7 @@ System.out.println("*** SPACE");
 				currentGenre = g;
 			}
 		}
-		if (!Util.projectorGenres.contains(currentGenre)) {
+		if (!Config.projectorGenres.contains(currentGenre)) {
 			cortinaFound = true;
 		}
 		List<Track> playlist = nextTrackPlaylist;
@@ -1708,7 +1620,7 @@ System.out.println("*** SPACE");
 			if (g == null) {
 				continue;
 			}
-			if (!Util.projectorGenres.contains(g)) {
+			if (!Config.projectorGenres.contains(g)) {
 				cortinaFound = true;
 				continue;
 			}
@@ -1717,7 +1629,7 @@ System.out.println("*** SPACE");
 				continue;
 			}
 			// A cortina has been found, so the next 3 tracks must all be of the same (configured) genre...
-			if (!Util.projectorGenres.contains(g)) {
+			if (!Config.projectorGenres.contains(g)) {
 				genre = null;
 				break;
 			}
@@ -1742,7 +1654,7 @@ System.out.println("*** SPACE");
 			}
 		}
 		if (genre != null && genre.length() > 0 && orchestra != null && orchestra.length() > 0) {
-			String s = System.getProperty("panda.projector.map." + orchestra);
+			String s = Config.projectorOrchestras.get(orchestra);
 			if (s != null) {
 				orchestra = s;
 			}
@@ -1825,21 +1737,28 @@ System.out.println("*** SPACE");
 		try {
 			savePlaylists(timestamp);
 			saveTags(timestamp);
+			saveConfig(timestamp);
 		} catch (IOException ioe) {
 			Util.log(Level.SEVERE, "Error saving playlists!" + " (" + ioe.getMessage() + ")");
 		}
 	}
 
 	private void savePlaylists(String timestamp) throws IOException {
-		File file = new File(Util.PANDA_HOME + "panda.playlists");
-		File backup = new File(Util.PANDA_HOME + "bkp" + File.separator + "panda.playlists." + timestamp);
+		File file = new File(Config.PANDA_HOME + "panda.playlists");
+		File backup = new File(Config.PANDA_HOME + "bkp" + File.separator + "panda.playlists." + timestamp);
 		savePlaylists(file, backup);
 	}
 
 	private void saveTags(String timestamp) throws IOException {
-		File file = new File(Util.PANDA_HOME + "panda.tags");
-		File backup = new File(Util.PANDA_HOME + "bkp" + File.separator + "panda.tags." + timestamp);
+		File file = new File(Config.PANDA_HOME + "panda.tags");
+		File backup = new File(Config.PANDA_HOME + "bkp" + File.separator + "panda.tags." + timestamp);
 		saveTags(file, backup);
+	}
+
+	private void saveConfig(String timestamp) throws IOException {
+		File file = new File(Config.PANDA_HOME + "panda.config");
+		File backup = new File(Config.PANDA_HOME + "bkp" + File.separator + "panda.config." + timestamp);
+		Config.save(file, backup);
 	}
 
 	private void savePlaylists(File file, File backup) throws IOException {
@@ -1913,7 +1832,7 @@ System.out.println("*** SPACE");
 	// Removes duplicate backup files
 	private void cleanup() {
 		Util.log(Level.FINE, "Cleaning up...");
-		File dir = new File(Util.PANDA_HOME + "bkp");
+		File dir = new File(Config.PANDA_HOME + "bkp");
 		File[] filesArray = dir.listFiles();
 		List<File> files = Arrays.asList(filesArray);
 		Collections.sort(files);
@@ -2014,8 +1933,8 @@ System.out.println("*** SPACE");
 					// Wait specified number of seconds before starting the next track
 					// But only if the end of the track has been reached during play.
 					// ie. not if the "Next" button or "Play Now" menu has been clicked.
-					if (WAIT > 0 && player.getDuration() == player.getPosition()) {
-						Util.pause(1000 * WAIT);
+					if (Config.wait > 0 && player.getDuration() == player.getPosition()) {
+						Util.pause(1000 * Config.wait);
 					}
 					if (proceed) {
 						if (nextTrackIndex >= 0 && nextTrackIndex < nextTrackPlaylist.size()) {
@@ -2105,10 +2024,10 @@ System.out.println("*** SPACE");
 				label.setBackground(backgroundSelectionColor);
 			}
 			if (leaf && currentTrackIndex >= 0) {
-				setColor(name, nextTandaPlaylist, nextTandaColor);
-				setColor(name, nextCortinaPlaylist, nextCortinaColor);
-				setColor(name, nextTrackPlaylist, nextTrackColor);
-				setColor(name, currentTrackPlaylist, currentTrackColor);
+				setColor(name, nextTandaPlaylist, Config.nextTandaColor);
+				setColor(name, nextCortinaPlaylist, Config.nextCortinaColor);
+				setColor(name, nextTrackPlaylist, Config.nextTrackColor);
+				setColor(name, currentTrackPlaylist, Config.currentTrackColor);
 			}
 			Util.setTextColor(label);
 			panel.setEnabled(tree.isEnabled());
@@ -2153,27 +2072,27 @@ System.out.println("*** SPACE");
 				component.setForeground(Color.WHITE);
 			} else {
 				String genre = model.getGenre(modelRow);
-				if (genreColors.containsKey(genre)) {
-					color = genreColors.get(genre);
+				if (Config.genreColors.containsKey(genre)) {
+					color = Config.genreColors.get(genre);
 				}
 				if (displayPlaylist == nextTandaPlaylist) {
 					if (modelRow == Panda.this.nextTandaIndex) {
-						color = nextTandaColor;
+						color = Config.nextTandaColor;
 					}
 				}
 				if (displayPlaylist == nextCortinaPlaylist) {
 					if (modelRow == Panda.this.nextCortinaIndex) {
-						color = nextCortinaColor;
+						color = Config.nextCortinaColor;
 					}
 				}
 				if (displayPlaylist == nextTrackPlaylist) {
 					if (modelRow == Panda.this.nextTrackIndex) {
-						color = nextTrackColor;
+						color = Config.nextTrackColor;
 					}
 				}
 				if (displayPlaylist == currentTrackPlaylist) {
 					if (modelRow == Panda.this.currentTrackIndex) {
-						color = currentTrackColor;
+						color = Config.currentTrackColor;
 					}
 				}
 				component.setBackground(color);
@@ -2224,7 +2143,7 @@ System.out.println("*** SPACE");
 			Track track = playlist.get(row);
 			// NOTE: If track is null (because the playlist configuration lists a file that cannot be found)
 			//       then it will result in a null pointer exception below...
-			String column = getColumnName(col);
+			String name = getColumnName(col);
 			if (col == 0) {
 				// Special column
 				if (track.isMissing()) {
@@ -2232,9 +2151,9 @@ System.out.println("*** SPACE");
 				} else {
 					object = Boolean.valueOf(track.isChecked());
 				}
-			} else if (column.equals("Title")) {
+			} else if (name.equals("Title")) {
 				object = track.getTitle(); 
-			} else if (column.equals("Time")) {
+			} else if (name.equals("Time")) {
 				Player player = track.getPlayer();
 				if (player != null) {
 					int duration = player.getDuration();
@@ -2243,12 +2162,12 @@ System.out.println("*** SPACE");
 				}
 			} else {
 				// The value for this column is contained in a tag
-				String tagName = column.toLowerCase();
-				int number = getColumnNumber(column);
+				String tagName = name.toLowerCase();
+				int number = getColumnNumber(name);
 				if (number >= 1) {
-					String s = System.getProperty("panda.column." + number + ".tag.panda");
-					if (s != null) {
-						tagName = s;
+					Config.Column column = Config.columns.get(number);
+					if (column.tag != null) {
+						tagName = column.tag;
 					}
 				}
 				object = track.getTag(tagName); 
@@ -2367,16 +2286,14 @@ System.out.println("*** SPACE");
 			// Flags to indicate which mandatory columns have been configured:
 			boolean timeConfigured = false;
 			boolean titleConfigured = false;
-			for (int i = 0; ; i++) {
-				String name = System.getProperty("panda.column." + (i + 1));
-				if (name == null) {
-					break;
+			for (Config.Column column : Config.columns) {
+				if (column.name != null) {
+					columns.add(column.name);
 				}
-				columns.add(name);
-				if (name.equals("Time")) {
+				if ("Time".equals(column.name)) {
 					timeConfigured = true;
 				}
-				if (name.equals("Title")) {
+				if ("Title".equals(column.name)) {
 					titleConfigured = true;
 				}
 			}
@@ -2392,97 +2309,14 @@ System.out.println("*** SPACE");
 				TableColumn tableColumn = new TableColumn(i);
 				tableColumn.setHeaderValue(column);
 				addColumn(tableColumn);
-				int number = getColumnNumber(column);
-				// Default widths with outer bounds
-				int preferred = 120;
-				int min = 0;
-				int max = 640;
-				// Column-specific default widths
-				if (i == 0) {
-					// Special column
-					number = i;
-					preferred = 40;
-					min = 20;
-					max = 80;
-				} else if (column.equals("Time")) {
-					preferred = 48;
-					min = 42;
-					max = 60;
-				} else if (column.equals("Title")) {
-					preferred = 160;
-					min = 80;
-				} else if (column.equals("Orchestra")) {
-					preferred = 80;
-					min = 80;
-					max = 240;
-				} else if (column.equals("Singer(s)")) {
-					preferred = 160;
-					min = 80;
-					max = 240;
-				} else if (column.equals("Genre")) {
-					preferred = 80;
-					min = 60;
-					max = 120;
-				} else if (column.equals("Year")) {
-					preferred = 48;
-					min = 42;
-					max = 60;
-				} else if (column.equals("Time")) {
-					preferred = 48;
-					min = 42;
-					max = 60;
-				} else if (column.equals("BPM")) {
-					preferred = 48;
-					min = 36;
-					max = 60;
-				} else if (column.equals("Source")) {
-					preferred = 80;
-					min = 60;
-					max = 120;
-				} else if (column.equals("Comment")) {
-					preferred = 240;
-					max = 1000;
-				}
-				// Configured widths
-				if (number >= 0) {
-					preferred = readIntProperty("panda.column." + number + ".width", 0, 640, preferred);
-					min = readIntProperty("panda.column." + number + ".width.min", 0, 640, min);
-					max = readIntProperty("panda.column." + number + ".width.max", 0, 640, max);
-				}
-				Util.log(Level.INFO, "Column #" + i + " using width values: preferred=" + preferred + ", min=" + min + ", max=" + max);
-				tableColumn.setPreferredWidth(preferred);
-				tableColumn.setMinWidth(min);
-				tableColumn.setMaxWidth(max);
-			}
-		}
-
-		// Returns the integer value for the number represented by the string value of the specified property.
-		// If it is NOT configured or does not represent a valid number, then the default value will be returned,
-		// else, if it falls ouside of the min-max range then either the min or max value will be returned,
-		// else the configured value will be returned.
-		// NOTE: Move to Util class if it will be used elsewhere...
-		private int readIntProperty(String key, int min, int max, int def) {
-			int value = def;
-			String s = System.getProperty(key);
-			if (s == null) {
-				Util.log(Level.WARNING, "Property " + key + " not defined (Using default value " + def + ")");
-				value = def;
-			} else {
-				try {
-					value = Integer.parseInt(s);
-					if (value < min) {
-						Util.log(Level.WARNING, "Invalid value for property " + key + ": " + value + " (Using min value " + min + ")");
-						value = min;
-					} else if (value > max) {
-						Util.log(Level.WARNING, "Invalid value for property " + key + ": " + value + " (Using max value " + max + ")");
-						value = max;
+				for (Config.Column col : Config.columns) {
+					if (column.equals(col.name) || (column.equals("") && col.name == null)) {
+						tableColumn.setPreferredWidth(col.width);
+						tableColumn.setMinWidth(col.minWidth);
+						tableColumn.setMaxWidth(col.maxWidth);
 					}
-				} catch (NumberFormatException nfe) {
-					Util.log(Level.WARNING, "Invalid value for property " + key + ": " + value + " (Using default value " + def + ")");
 				}
 			}
-			Util.log(Level.FINE, "Value for property " + key + ": " + value + " (min=" + min + ", max=" + max + ", def=" + def + ")");
-			return value;
 		}
 
 		public String getColumnName(int col) {

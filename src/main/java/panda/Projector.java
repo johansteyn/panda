@@ -53,14 +53,21 @@ import java.util.logging.Level;
 // The (optional) tail contains the track year
 public class Projector extends JWindow {
 	static Projector projector;  // Shared instance when using standalone
-	private int width;
-	private int height;
+//	private int width;
+//	private int height;
+	private int width = Config.projectorWidth;
+	private int height = Config.projectorHeight;
 
-	private String defaultHeader = "";
-	private String defaultImage = "";
-	private String defaultBody = "";
-	private String defaultTail = "";
-	private String defaultFooter = "";
+//	private String defaultHeader = "";
+//	private String defaultImage = "";
+//	private String defaultBody = "";
+//	private String defaultTail = "";
+//	private String defaultFooter = "";
+	private String defaultHeader = Config.projectorHeader;
+	private String defaultImage = Config.projectorImage;
+	private String defaultBody = Config.projectorBody;
+	private String defaultTail = Config.projectorTail;
+	private String defaultFooter = Config.projectorFooter;
 
 	private JLabel headerLabel;
 	private JLabel imageLabel;
@@ -84,7 +91,7 @@ public class Projector extends JWindow {
 
 	public Projector(JFrame owner) {
 		super(owner);
-		init();
+//		init();
 		setSize(width, height);
 		setLocationRelativeTo(null);  // Places window in center of screen
 		setAlwaysOnTop(true);
@@ -109,7 +116,7 @@ public class Projector extends JWindow {
 
 		setDefaults();
 	}
-
+/*
 	private void init() {
 		Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
 		width = screenSize.width / 2;
@@ -157,7 +164,7 @@ public class Projector extends JWindow {
 			defaultFooter = string;
 		}
 	}
-
+*/
 	public void setDefaults() {
 		headerLabel.setText(defaultHeader);
 		Image image = loadImage(defaultImage);
@@ -264,11 +271,13 @@ public class Projector extends JWindow {
 			return image;
 		}
 		try {
-			image = ImageIO.read(new File(Util.PANDA_HOME + "images/" + filename));
+//			image = ImageIO.read(new File(Util.PANDA_HOME + "images/" + filename));
+			image = ImageIO.read(new File(Config.PANDA_HOME + "images/" + filename));
 		} catch (IOException ioe) {
 			Util.log(Level.WARNING, "Error loading image " + filename + ": " + ioe + " (loading default image " + defaultImage + ")");
 			try {
-				image = ImageIO.read(new File(Util.PANDA_HOME + "images/" + defaultImage));
+//				image = ImageIO.read(new File(Util.PANDA_HOME + "images/" + defaultImage));
+				image = ImageIO.read(new File(Config.PANDA_HOME + "images/" + defaultImage));
 			} catch (IOException e) {
 				Util.log(Level.SEVERE, "Error loading default image " + defaultImage + ": " + e);
 			}
@@ -459,7 +468,8 @@ class StreamConsumer extends Thread {
 		}
 // --------------------------------------------------------------------------------
 // TODO: Cache values to prevent flicker? (ie. only repaint if values have actually changed...)
-		if (genre == null || !Util.projectorGenres.contains(genre)) {
+//		if (genre == null || !Util.projectorGenres.contains(genre)) {
+		if (genre == null || !Config.projectorGenres.contains(genre)) {
 			Projector.projector.setDefaults();
 			return;
 		}

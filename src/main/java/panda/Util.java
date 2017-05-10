@@ -30,13 +30,11 @@ import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 
-import java.util.ArrayList;
-import java.util.Collections;
+//import java.util.ArrayList;
+//import java.util.Collections;
 import java.util.Date;
-import java.util.Enumeration;
-import java.util.List;
-import java.util.Properties;
-import java.util.StringTokenizer;
+//import java.util.Enumeration;
+//import java.util.List;
 
 import java.util.logging.FileHandler;
 import java.util.logging.Handler;
@@ -45,160 +43,77 @@ import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
 
 class Util {
-	public static final String PANDA_HOME;
-	public static List<String> projectorGenres = new ArrayList<String>();
 	private static final Logger logger = Logger.getLogger("panda");
-	private static Properties properties;
 
 	static {
-		PANDA_HOME = initHomeDir();
-		initProperties();
 		initLogger();
-	}
-
-	private static String initHomeDir() {
-		String homeDir = System.getenv("PANDA_HOME");
-		if (homeDir == null) {
-			homeDir = System.getProperty("user.home") + File.separator + "panda" + File.separator;
-		}
-		File file = new File(homeDir);
-		// Check that it actually exists
-		if (!file.exists()) {
-			System.out.println("Panda home directory not found: " + homeDir);
-			System.exit(1);
-		}
-		// Get absolute path so that on Windows the drive portion is included
-		homeDir = file.getAbsolutePath();
-		if (homeDir.charAt(homeDir.length() - 1) != File.separatorChar) {
-			homeDir += File.separator;
-		}
-		return homeDir;
-	}
-
-	private static void initProperties() {
-//		Properties properties = new Properties();
-		properties = new Properties();
-		String filename = PANDA_HOME + "panda.properties";
-		try {
-			FileInputStream fis = new FileInputStream(filename);
-			properties.load(fis);
-			fis.close();
-		} catch (IOException ioe) {
-			Util.log(Level.WARNING, "Error loading Panda properties from " + filename + ": " + ioe);
-			Util.log(Level.WARNING, "Using default property values.");
-			return;
-		}
-		Enumeration keys = properties.keys();
-		while (keys.hasMoreElements()) {
-			String key = (String)keys.nextElement();
-			String value = System.getProperty(key);
-			if (value == null) {
-				// Only set property if it has not already been set, eg: on command line using -Dkey=value
-				value = (String)properties.get(key);
-				System.setProperty(key, value);
-			}
-		}
-
-		String defaultValue = "Tango,Vals,Milonga";
-		String key = "panda.projector.genres";
-		String value = System.getProperty(key);
-		if (value == null) {
-			Util.log(Level.WARNING, "Property " + key + " not defined (Using default value " + defaultValue + ")");
-			value = defaultValue;
-		}
-		StringTokenizer st = new StringTokenizer(value, ",");
-		while (st.hasMoreTokens()) {
-			projectorGenres.add(st.nextToken());
-		}
 	}
 
 	private static void initLogger() {
 		try {
-			File dir = new File(Util.PANDA_HOME + "bkp");
+			File dir = new File(Config.PANDA_HOME + "bkp");
 			if (!dir.exists()) {
 				if (!dir.mkdirs()) {
-					throw new IOException("Error creating backup directory: " + Util.PANDA_HOME + "bkp");
+					throw new IOException("Error creating backup directory: " + Config.PANDA_HOME + "bkp");
 				}
 			}
 			DateFormat df = new SimpleDateFormat("yyyyMMdd.HHmmss");
 			String timestamp = df.format(new Date());
-			File file = new File(PANDA_HOME + "panda.log");
-			File backup = new File(PANDA_HOME + "bkp" + File.separator + "panda.log." + timestamp);
+			File file = new File(Config.PANDA_HOME + "panda.log");
+			File backup = new File(Config.PANDA_HOME + "bkp" + File.separator + "panda.log." + timestamp);
 			if (backup(file, backup, 24 * 60, 100)) {
 				// Backup the log file if it is older than one day or larger than 100 kilobytes
 				file.delete();
 			}			
 
-			Handler handler = new FileHandler(PANDA_HOME + "panda.log", true);
+			Handler handler = new FileHandler(Config.PANDA_HOME + "panda.log", true);
 			handler.setFormatter(new SimpleFormatter());
 			logger.addHandler(handler);
-			// Set default log level to INFO, but then override that with configured value (if any)
-			Level level = Level.INFO;
-			String logLevel = System.getProperty("panda.log.level");
-			if (logLevel != null) {
-				if (logLevel.equals("FINE")) {
-					level = Level.FINE;
-				} else if (logLevel.equals("INFO")) {
-					level = Level.INFO;
-				} else if (logLevel.equals("WARNING")) {
-					level = Level.WARNING;
-				} else if (logLevel.equals("SEVERE")) {
-					level = Level.SEVERE;
-				} else {
-					System.out.println("Invalid log level specified: " + logLevel);
-					System.exit(1);
-				}
-			}
-			System.out.println("Setting log level to: " + level);
+			// First set log level to INFO...
+			logger.setLevel(Level.INFO);
+			// ...so that warnings can be logged during configuration loading...
+			Config.load();
+			// ...then set log level to configured value
+			logger.setLevel(Config.level);
+			logger.log(Level.INFO, "Log level set to: " + Config.level);
 			// Logging output is sent to both the console and the file PANDA_HOME/panda.log
 			// A "floor" level can also be specified for both the console and file
 			// in the Java jre/lib/logging.properties file:
 			//   java.util.logging.ConsoleHandler.level=INFO
 			//   panda.level=FINE
 			// To reduce console output, set the console log level no lower than INFO
-			logger.setLevel(level);
-			// Test to see if log level works...
-			logger.log(Level.SEVERE, "SEVERE");
-			logger.log(Level.WARNING, "WARNING");
-			logger.log(Level.INFO, "INFO");
-			logger.log(Level.FINE, "FINE");
+//			// Test to see if log level works...
+//			logger.log(Level.SEVERE, "SEVERE");
+//			logger.log(Level.WARNING, "WARNING");
+//			logger.log(Level.INFO, "INFO");
+//			logger.log(Level.FINE, "FINE");
 			// Having already set PANDA_HOME, we now merely log it's value, 
 			// along with a warning if the environment variable is not set.
 			if (System.getenv("PANDA_HOME") == null) {
 				logger.log(Level.WARNING, "Environment variable PANDA_HOME not set.");
 			}
-			logger.log(Level.INFO, "Using PANDA_HOME: " + PANDA_HOME);
-			StringBuilder sb = new StringBuilder("Configured properties:\n");
-			Enumeration keys = properties.keys();
-			/*
-			while (keys.hasMoreElements()) {
-				String key = (String)keys.nextElement();
-				String value = (String)properties.get(key);
-				sb.append("  ");
-				sb.append(key);
-				sb.append("=");
-				sb.append(value);
-				sb.append("\n");
-			}
-			*/
-			List<String> list = new ArrayList<String>();
-			while (keys.hasMoreElements()) {
-				String key = (String)keys.nextElement();
-				list.add(key);
-			}
-			Collections.sort(list);
-			for (String key: list) {
-				String value = (String)properties.get(key);
-				sb.append("  ");
-				sb.append(key);
-				sb.append("=");
-				sb.append(value);
-				sb.append("\n");
-			}
-			logger.log(Level.INFO, sb.toString());
+			logger.log(Level.INFO, "Using PANDA_HOME: " + Config.PANDA_HOME);
+
+//			StringBuilder sb = new StringBuilder("Configuration:\n");
+//			Enumeration keys = Config.properties.keys();
+//			List<String> list = new ArrayList<String>();
+//			while (keys.hasMoreElements()) {
+//				String key = (String)keys.nextElement();
+//				list.add(key);
+//			}
+//			Collections.sort(list);
+//			for (String key: list) {
+//				String value = (String) Config.properties.get(key);
+//				sb.append("  ");
+//				sb.append(key);
+//				sb.append("=");
+//				sb.append(value);
+//				sb.append("\n");
+//			}
+//			logger.log(Level.INFO, sb.toString());
+
 		} catch (IOException ioe) {
 			logger.log(Level.SEVERE, "Error initializing logger: " + ioe);
-ioe.printStackTrace();
 			System.exit(1);
 		}
 	}

@@ -37,7 +37,7 @@ public class Player {
 	private static int volume = 14;
 	private static int balance = 0;
 	private static boolean equalizerEnabled;
-	private static int[] equalizer = new int[Panda.BANDS];
+	private static int[] equalizer = new int[Config.bands];
 
 	private Track track;
 	private AudioInputStream ais;
@@ -81,9 +81,7 @@ public class Player {
 		this.track = track;
 		String filename = track.getFilename();
 		Util.log(Level.FINE, "Getting audio input stream for file: " + filename);
-//		ais = AudioSystem.getAudioInputStream(new File(filename));
-		//ais = AudioSystem.getAudioInputStream(new File(Panda.TRACKS_DIR + filename));
-		File file = new File(Panda.TRACKS_DIR + filename);
+		File file = new File(Panda.TRACKS + filename);
 		Util.log(Level.FINE, "Getting audio input stream for file: " + file);
 		ais = AudioSystem.getAudioInputStream(file);
 
@@ -123,7 +121,7 @@ public class Player {
 		player = this;
 		String filename = track.getFilename();
 		Util.log(Level.INFO, "------------ Playing file " + filename + " ------------");
-		filename = Panda.TRACKS_DIR + filename;
+		filename = Panda.TRACKS + filename;
 		// Note, when a track is played, it is by definition NOT stopped and at position 0.
 		// However, it may be paused, in which case it will get eberything ready to play and then wait until it is unpaused before continuing
 		stopped = false;
@@ -240,7 +238,7 @@ public class Player {
 			position = 0;
 		}
 // NO! Don't set the position field!
-// If position is set (via slider) while player is paused then it won;t seek to the new position
+// If position is set (via slider) while player is paused then it won't seek to the new position
 // (it will think that it is already at that position...)
 //		if (paused && this.position != position) {
 //			// Need to invoke listeners if player is paused, otherwise they won't get notified of change
