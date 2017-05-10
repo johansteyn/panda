@@ -111,13 +111,6 @@ public class Config {
 		while (keys.hasMoreElements()) {
 			String key = (String)keys.nextElement();
 			list.add(key);
-// TODO: Remove once configuration is fully implemented for "column" and "projector" properties...
-//String value = System.getProperty(key);
-//if (value == null) {
-//	// Only set property if it has not already been set, eg: on command line using -Dkey=value
-//	value = (String) properties.get(key);
-//	System.setProperty(key, value);
-//}
 		}
 		Collections.sort(list);
 		for (String key: list) {

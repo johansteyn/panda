@@ -30,11 +30,7 @@ import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 
-//import java.util.ArrayList;
-//import java.util.Collections;
 import java.util.Date;
-//import java.util.Enumeration;
-//import java.util.List;
 
 import java.util.logging.FileHandler;
 import java.util.logging.Handler;
@@ -93,25 +89,6 @@ class Util {
 				logger.log(Level.WARNING, "Environment variable PANDA_HOME not set.");
 			}
 			logger.log(Level.INFO, "Using PANDA_HOME: " + Config.PANDA_HOME);
-
-//			StringBuilder sb = new StringBuilder("Configuration:\n");
-//			Enumeration keys = Config.properties.keys();
-//			List<String> list = new ArrayList<String>();
-//			while (keys.hasMoreElements()) {
-//				String key = (String)keys.nextElement();
-//				list.add(key);
-//			}
-//			Collections.sort(list);
-//			for (String key: list) {
-//				String value = (String) Config.properties.get(key);
-//				sb.append("  ");
-//				sb.append(key);
-//				sb.append("=");
-//				sb.append(value);
-//				sb.append("\n");
-//			}
-//			logger.log(Level.INFO, sb.toString());
-
 		} catch (IOException ioe) {
 			logger.log(Level.SEVERE, "Error initializing logger: " + ioe);
 			System.exit(1);
