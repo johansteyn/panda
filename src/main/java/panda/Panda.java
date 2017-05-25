@@ -91,6 +91,7 @@ public class Panda extends JFrame {
 	private JButton logoButton = new ImageButton("panda-logo-transparent-064.png");
 	private JPopupMenu logoPopupMenu = new JPopupMenu();
 	private JPopupMenu tablePopupMenu = new JPopupMenu();
+	private JPopupMenu nextPopupMenu = new JPopupMenu();
 	// TODO: Keyboard shortcuts for menu items?
 	private JCheckBoxMenuItem projectorMenuItem = new JCheckBoxMenuItem("Projector", false);
 	private JMenuItem quitMenuItem = new JMenuItem("Quit");
@@ -100,6 +101,7 @@ public class Panda extends JFrame {
 	private JMenuItem nextTandaMenuItem = new JMenuItem("Next Tanda");
 	private JMenuItem selectAllMenuItem = new JMenuItem("Select all");
 	private JMenuItem selectNoneMenuItem = new JMenuItem("Select none");
+	private JCheckBoxMenuItem fadeMenuItem = new JCheckBoxMenuItem("Fade");
 
 	private JLabel leftLabel = new JLabel(" ");
 	private JButton prevButton = new ImageButton("panda-prev-032.png");
@@ -710,6 +712,7 @@ public class Panda extends JFrame {
 		tablePopupMenu.addSeparator();
 		tablePopupMenu.add(selectAllMenuItem);
 		tablePopupMenu.add(selectNoneMenuItem);
+		nextPopupMenu.add(fadeMenuItem);
 
 		Box buttonBox = new Box(BoxLayout.X_AXIS);
 		leftLabel.setHorizontalAlignment(SwingConstants.LEFT);
@@ -996,6 +999,25 @@ System.out.println("*** SPACE");
 				tablePopupMenu.show(table, e.getX(), e.getY());
 			}
 		});
+		nextButton.addMouseListener(new MouseAdapter() {
+			// Show popup menu when button is clicked
+			// but only if it is a popup trigger
+			public void mouseClicked(MouseEvent e) {
+				maybeShowPopup(e);
+			}
+			public void mousePressed(MouseEvent e) {
+				maybeShowPopup(e);
+			}
+			public void mouseReleased(MouseEvent e) {
+				maybeShowPopup(e);
+			}
+			private void maybeShowPopup(MouseEvent e) {
+				if (!e.isPopupTrigger()) {
+					return;
+				}
+				nextPopupMenu.show(nextButton, e.getX(), e.getY());
+			}
+		});
 		projectorMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				boolean state = projectorMenuItem.getState();
@@ -1127,7 +1149,12 @@ System.out.println("*** SPACE");
 		});
 		nextButton.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				playThread.next();
+				if (fadeMenuItem.isSelected()) {
+					playThread.fade();
+				} else {
+					playThread.next();
+				}
+					
 			}
 		});
 		positionSlider.addChangeListener(new ChangeListener() {
@@ -1929,6 +1956,8 @@ System.out.println("*** SPACE");
 				final Player player = track.getPlayer();
 				updateProjector();
 				try {
+					// Ensure volume is restored to user-specified value in case previous track was faded out
+					Player.setVolume(volumeSlider.getValue());
 					player.play();
 					// Wait specified number of seconds before starting the next track
 					// But only if the end of the track has been reached during play.
@@ -1994,6 +2023,10 @@ System.out.println("*** SPACE");
 			// iTunes always changes the display to show the track when it starts playing,
 			// but I find it annoying when it does that while I'm busy.
 			//showNextTrack();
+		}
+
+		synchronized void fade() {
+			Player.fade();
 		}
 	}
 

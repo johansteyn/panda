@@ -38,6 +38,7 @@ public class Player {
 	private static int balance = 0;
 	private static boolean equalizerEnabled;
 	private static int[] equalizer = new int[Config.bands];
+	private static boolean fade;
 
 	private Track track;
 	private AudioInputStream ais;
@@ -123,7 +124,7 @@ public class Player {
 		Util.log(Level.INFO, "------------ Playing file " + filename + " ------------");
 		filename = Panda.TRACKS + filename;
 		// Note, when a track is played, it is by definition NOT stopped and at position 0.
-		// However, it may be paused, in which case it will get eberything ready to play and then wait until it is unpaused before continuing
+		// However, it may be paused, in which case it will get everything ready to play and then wait until it is unpaused before continuing
 		stopped = false;
 		position = 0;
 		newPosition = -1;
@@ -156,7 +157,7 @@ public class Player {
 		setVolume(volume);
 		setBalance(balance);
 		setEqualizerEnabled(equalizerEnabled);
-
+		fade = false;
 		Util.log(Level.FINE, "Starting line...");
 		line.start();
 
@@ -167,6 +168,7 @@ public class Player {
 
 		byte[] buffer = new byte[BUFFER_SIZE];
 		int totalRead = 0;
+		long timestamp = System.currentTimeMillis();
 		while (true) {
 			//Util.log(Level.FINE, "Available: " + ais.available());
             int read = eais.read(buffer, 0, buffer.length);
@@ -212,6 +214,15 @@ public class Player {
 					// Note: Don't play whatever remains in the buffer - discard it and read from the new position.
 					continue;
 				}
+			}
+			if (fade && System.currentTimeMillis() - timestamp > 1000) {
+				// Reduce volume if more than a second has passed
+				int newVolume = getVolume() - 1;
+				if (newVolume < 0) {
+					break;
+				}
+				setVolume(newVolume);
+				timestamp = System.currentTimeMillis();
 			}
 			line.write(buffer, 0, read);
 		}
@@ -282,20 +293,37 @@ public class Player {
 	//   volume  0 = minimum gain 
 	//   volume 14 = zero gain
 	//   volume 20 = maximum gain
-	// Values in-between are mapped directly to dB values, eg: 16=+2dB, 10=-4dB, etc.
+	// Values in-between are calculated to dB values
 	public static void setVolume(int value) {
 		if (player == null || player.gainControl == null) {
 			return;
 		}
 		volume = value;
 		float gain = 0.0f;
-		if (volume == 0) {
-			gain = player.gainControl.getMinimum();
-		} else if (volume != 14) {
-			gain = volume - 14;
+		float min = player.gainControl.getMinimum();
+		float max = player.gainControl.getMaximum();
+		if (value >= 20) {
+			volume = 20;
+			gain = max;
+		} else if (value <= 0) {
+			volume = 0;
+			gain = min;
+		} else if (value > 14) {
+			gain = max - (20 - value) * max / 6;
+		} else if (value < 14) {
+			gain = (14 - value) * min / 14;
 		}
 		Util.log(Level.FINE, "Setting volume to: " + volume + " (gain=" + gain + ")");
 		player.gainControl.setValue(gain);
+	}
+
+
+	public static int getVolume() {
+		return volume;
+	}
+
+	public static void fade() {
+		fade = true;
 	}
 
 	public static float getGain() {
