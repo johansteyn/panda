@@ -16,9 +16,15 @@
  */
 package panda;
 
-import java.io.*;
-import java.util.*;
-import javax.sound.sampled.*;
+//import java.io.*;
+//import java.util.*;
+//import javax.sound.sampled.*;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import javax.sound.sampled.UnsupportedAudioFileException;
 
 public class Track implements Comparable<Track> {
 	// Normally both player and filename are not null

@@ -44,13 +44,10 @@ public class Player {
 	private AudioInputStream ais;
 	private AudioFormat audioFormat;
 	private List<PlayerListener> listeners = new ArrayList<PlayerListener>();
-	private SourceDataLine line;
 	private int channels; // Number of channels (1 for mono, 2 for stereo)
 	private int duration; // Length of track in seconds
 	private int position; // Current position in audio stream in seconds
 	private int newPosition = -1; // Position that player must seek (jump) to
-//	private BooleanControl muteControl;
-//	private FloatControl panControl;
 	private FloatControl gainControl;
 	private FloatControl balanceControl;
 	private IIRControls equalizerControl;
@@ -80,10 +77,8 @@ public class Player {
 	public Player(Track track) throws IOException, UnsupportedAudioFileException {
 		Util.log(Level.FINE, "Constructing player for track: " + track);
 		this.track = track;
-		String filename = track.getFilename();
-		Util.log(Level.FINE, "Getting audio input stream for file: " + filename);
-		File file = new File(Panda.TRACKS + filename);
-		Util.log(Level.FINE, "Getting audio input stream for file: " + file);
+		Util.log(Level.FINE, "Getting audio input stream for file: " + track.getFilename());
+		File file = new File(Panda.TRACKS + track.getFilename());
 		ais = AudioSystem.getAudioInputStream(file);
 
 		audioFormat = ais.getFormat();
@@ -120,16 +115,15 @@ public class Player {
 	//   No, I prefer to expose them...
 	public synchronized void play() throws IOException, UnsupportedAudioFileException, LineUnavailableException, LineUnavailableException {
 		player = this;
-		String filename = track.getFilename();
-		Util.log(Level.INFO, "------------ Playing file " + filename + " ------------");
-		filename = Panda.TRACKS + filename;
+		Util.log(Level.INFO, "------------ Playing " + track.getFilename() + " ------------");
+		File file = new File(Panda.TRACKS + track.getFilename());
 		// Note, when a track is played, it is by definition NOT stopped and at position 0.
 		// However, it may be paused, in which case it will get everything ready to play and then wait until it is unpaused before continuing
 		stopped = false;
 		position = 0;
 		newPosition = -1;
 		// Make sure we obtain a fresh input stream...
-		ais = AudioSystem.getAudioInputStream(new File(filename));
+		ais = AudioSystem.getAudioInputStream(file);
 		EqualizerAudioInputStream eais = new EqualizerAudioInputStream(ais, equalizer.length);
 
 		Util.log(Level.FINE, "Obtaining line...");
@@ -201,7 +195,7 @@ public class Player {
 				} else if (newPosition < position) {
 					Util.log(Level.FINE, "Seeking backward to position: " + newPosition);
 					// Need to obtain new input stream in order to be able to seek backwards
-					ais = AudioSystem.getAudioInputStream(new File(filename));
+					ais = AudioSystem.getAudioInputStream(file);
 					eais = new EqualizerAudioInputStream(ais, equalizer.length);
 					equalizerControl = eais.getControls();
 					setEqualizerEnabled(equalizerEnabled);
@@ -277,14 +271,6 @@ public class Player {
 		Player.paused = paused;
 	}
 
-//	public void toggleMute() {
-//		if (muteControl != null) {
-//			boolean value = muteControl.getValue();
-//			muteControl.setValue(value ? false : true);
-//			Util.log(Level.FINE, "Mute: " + (muteControl.getValue() ? "ON" : "OFF"));
-//		}
-//	}
-
 	public static boolean isGainControlSupported() {
 		return player != null && player.gainControl != null ? true : false;
 	}
@@ -337,6 +323,7 @@ public class Player {
 		return player != null && player.balanceControl != null ? true : false;
 	}
 
+	// Value can range from -10 to 10
 	public static void setBalance(int value) {
 		if (player == null || player.balanceControl == null) {
 			return;
@@ -367,6 +354,7 @@ public class Player {
 		}
 	}
 
+	// Value can range from -10 to 10
 	public static void setEqualizer(int band, int value) {
 		equalizer[band] = value;
 		if (equalizerEnabled) {
@@ -378,11 +366,6 @@ public class Player {
 		if (player == null || player.equalizerControl == null) {
 			return;
 		}
-//		float floatValue = ((float) value) / 10.0f / 5.0f;
-//		if (floatValue < -0.2f) {
-//			// TODO: Allow negative range to be spread out more...
-//			floatValue = -0.2f;
-//		}
 		float floatValue = ((float) value) / 10.0f / 5.0f;  // Value can range between -0.2 and +0.2
 		Util.log(Level.FINE, "Setting equalizer band #" + band + " to: " + value + "(float=" + floatValue + ")");
 		for (int i = 0; i < player.channels; i++) {
@@ -395,7 +378,6 @@ public class Player {
 
 		public void update(LineEvent event) {
 			Util.log(Level.FINE, "Line event:" + event);
-			long time = System.currentTimeMillis();
 			if (first) {
 				first = false;
 				Line line = event.getLine();
