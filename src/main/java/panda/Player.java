@@ -16,251 +16,36 @@
  */
 package panda;
 
-import java.io.*;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.logging.Level;
-import javax.sound.sampled.*;
 
-import panda.equalizer.*;
-
-// TODO: 
-// Find and use optimal buffer size - Look at JEQ test source for an idea...
+// The Player class stores settings that need to be:
+// - passed on to the track currently playing
+// - preserved between tracks (ie. applied when a new track starts playing)
 public class Player {
-	static final int BUFFER_SIZE = 8192; // 8KB
-	private static Player player; // The player that is currently being played
-
-	// Settings that need to be preserved between tracks, 
-	// ie. when a new track starts playing it must have these settings applied.
+	// TODO: Make private and add setter...
+	static Track track; // The track that is currently being played
 	private static boolean stopped;
 	private static boolean paused;
 	private static int volume = 14;
 	private static int balance = 0;
 	private static boolean equalizerEnabled;
 	private static int[] equalizer = new int[Config.bands];
-	private static boolean fade;
 
-	private Track track;
-	private AudioInputStream ais;
-	private AudioFormat audioFormat;
-	private List<PlayerListener> listeners = new ArrayList<PlayerListener>();
-	private int channels; // Number of channels (1 for mono, 2 for stereo)
-	private int duration; // Length of track in seconds
-	private int position; // Current position in audio stream in seconds
-	private int newPosition = -1; // Position that player must seek (jump) to
-	private FloatControl gainControl;
-	private FloatControl balanceControl;
-	private IIRControls equalizerControl;
-
-	// Main method is just for testing standalone on command line
-	public static void main(String[] args) throws Exception {
-		// TODO: Check args - not empty and files all exist...
-		Util.log(Level.INFO, "Running Player class directly on command line");
-		for (int i = 0; i < args.length; i++) {
-			String filename = args[i];
-			Player player = new Player(new Track(filename));
-			/*
-			player.addPlayerListener(new PlayerListener() {
-				public void positionChanged(int position) {
-					Util.log(Level.FINE, "Position: " + position);
-				}
-				public void error(Exception exception) {
-					Util.log(Level.SEVERE, "*** EXCEPTION: " + exception);
-					System.exit(1);
-				}
-			});
-			*/
-			player.play();
-		}
-	}
-
-	public Player(Track track) throws IOException, UnsupportedAudioFileException {
-		Util.log(Level.FINE, "Constructing player for track: " + track);
-		this.track = track;
-		Util.log(Level.FINE, "Getting audio input stream for file: " + track.getFilename());
-		File file = new File(Panda.TRACKS + track.getFilename());
-		ais = AudioSystem.getAudioInputStream(file);
-
-		audioFormat = ais.getFormat();
-		Util.log(Level.FINE, "Audio format: " + audioFormat);
-		Util.log(Level.FINE, "  Channels=" + audioFormat.getChannels());
-		Util.log(Level.FINE, "  Encoding=" + audioFormat.getEncoding());
-		Util.log(Level.FINE, "  FrameRate=" + audioFormat.getFrameRate());
-		Util.log(Level.FINE, "  FrameSize=" + audioFormat.getFrameSize());
-		Util.log(Level.FINE, "  SampleRate=" + audioFormat.getSampleRate());
-		Util.log(Level.FINE, "  SampleSizeInBits=" + audioFormat.getSampleSizeInBits());
-		Util.log(Level.FINE, "  isBigEndian? " + audioFormat.isBigEndian());
-
-		channels = audioFormat.getChannels();
-
-		Util.log(Level.FINE, "Calculating duration...");
-		int available = ais.available();
-		duration = available / (int) (audioFormat.getFrameRate() * audioFormat.getFrameSize()); 
-		Util.log(Level.FINE, "Duration: " + duration + " seconds");
-		// Note: Must close stream - cannot keep all the files open at the same time (IOException: Too many open files)
-		ais.close();
-	}
-
-	public Track getTrack() {
+	public static Track getTrack() {
 		return track;
 	}
 
-	// Can be called any number of times.
-	// Each time it is called, the track starts playing from the start
-	// Should only be invoked once at a time (across all instances)
-	// ie. must not be called while already playing!
-	// TODO: 
-	// - Throw IllegalStateException if invoked while already running
-	// - Expose underlying exceptions, or wrap them in a PlayerException?
-	//   No, I prefer to expose them...
-	public synchronized void play() throws IOException, UnsupportedAudioFileException, LineUnavailableException, LineUnavailableException {
-		player = this;
-		Util.log(Level.INFO, "------------ Playing " + track.getFilename() + " ------------");
-		File file = new File(Panda.TRACKS + track.getFilename());
-		// Note, when a track is played, it is by definition NOT stopped and at position 0.
-		// However, it may be paused, in which case it will get everything ready to play and then wait until it is unpaused before continuing
-		stopped = false;
-		position = 0;
-		newPosition = -1;
-		// Make sure we obtain a fresh input stream...
-		ais = AudioSystem.getAudioInputStream(file);
-		EqualizerAudioInputStream eais = new EqualizerAudioInputStream(ais, equalizer.length);
-
-		Util.log(Level.FINE, "Obtaining line...");
-		DataLine.Info info = new DataLine.Info(SourceDataLine.class, audioFormat);
-		SourceDataLine line = (SourceDataLine) AudioSystem.getLine(info);
-
-		Util.log(Level.FINE, "Adding line listener...");
-		line.addLineListener(new WavLineListener());
-
-		Util.log(Level.FINE, "Opening line...");
-		line.open(audioFormat);
-		// Cannot obtain controls before line is opened, yet need to set them before playing any sound
-		if (line.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
-			gainControl = (FloatControl) line.getControl(FloatControl.Type.MASTER_GAIN);
-		} else {
-			gainControl = null;
-		}
-		if (line.isControlSupported(FloatControl.Type.BALANCE)) {
-			balanceControl = (FloatControl) line.getControl(FloatControl.Type.BALANCE);
-		} else {
-			balanceControl = null;
-		}
-		equalizerControl = eais.getControls();
-		// Make sure new instance has volume, balance and equalizer set to same level as previous instance
-		setVolume(volume);
-		setBalance(balance);
-		setEqualizerEnabled(equalizerEnabled);
-		fade = false;
-		Util.log(Level.FINE, "Starting line...");
-		line.start();
-
-		// Invoke listeners only after controls have been obtained...
-		for (PlayerListener listener: listeners) {
-			listener.started(this);
-		}
-
-		byte[] buffer = new byte[BUFFER_SIZE];
-		int totalRead = 0;
-		long timestamp = System.currentTimeMillis();
-		while (true) {
-			//Util.log(Level.FINE, "Available: " + ais.available());
-            int read = eais.read(buffer, 0, buffer.length);
-			if (read < 0) {
-				break;
-			}
-			totalRead += read;
-			int i = totalRead / (int) (audioFormat.getFrameRate() * audioFormat.getFrameSize()); 
-			if (position != i) {
-				position = i;
-				Util.log(Level.FINE, "Position: " + position + " seconds");
-				for (PlayerListener listener: listeners) {
-					listener.positionChanged(this);
-				}
-			}
-			while (paused && !stopped) {
-				Util.pause(100);
-			}
-			if (stopped) {
-				break;
-			}
-			if (newPosition >= 0) {
-				long seek = (long) (newPosition * audioFormat.getFrameRate() * audioFormat.getFrameSize());
-				long skipped = 0;
-				if (newPosition > position) {
-					Util.log(Level.FINE, "Seeking forward to position: " + newPosition);
-					long skip = seek - totalRead;
-					skipped = eais.skip(skip);
-					totalRead += (int) skipped;
-				} else if (newPosition < position) {
-					Util.log(Level.FINE, "Seeking backward to position: " + newPosition);
-					// Need to obtain new input stream in order to be able to seek backwards
-					ais = AudioSystem.getAudioInputStream(file);
-					eais = new EqualizerAudioInputStream(ais, equalizer.length);
-					equalizerControl = eais.getControls();
-					setEqualizerEnabled(equalizerEnabled);
-					long skip = seek;
-					skipped = eais.skip(skip);
-					totalRead = (int) skipped;
-				}
-				newPosition = -1;
-				if (skipped > 0) {
-					// Note: Don't play whatever remains in the buffer - discard it and read from the new position.
-					continue;
-				}
-			}
-			if (fade && System.currentTimeMillis() - timestamp > 1000) {
-				// Reduce volume if more than a second has passed
-				int newVolume = getVolume() - 1;
-				if (newVolume < 0) {
-					break;
-				}
-				setVolume(newVolume);
-				timestamp = System.currentTimeMillis();
-			}
-			line.write(buffer, 0, read);
-		}
-		line.drain();
-		line.close();
-		eais.close();
-	}
-
-	public int getDuration() {
-		return duration;
-	}
-
-	public int getPosition() {
-		return position;
-	}
-
-	// Doesn't set the position field directly - instructs player to seek to specified position in stream
-	public void setPosition(int position) {
-		if (position > duration) {
-			stop();
-			return;
-		}
-		if (position < 0) {
-			position = 0;
-		}
-// NO! Don't set the position field!
-// If position is set (via slider) while player is paused then it won't seek to the new position
-// (it will think that it is already at that position...)
-//		if (paused && this.position != position) {
-//			// Need to invoke listeners if player is paused, otherwise they won't get notified of change
-//			this.position = position;
-//			for (PlayerListener listener: listeners) {
-//				listener.positionChanged(this);
-//			}
-//		}
-		this.newPosition = position;
-	}
-
-	public void addPlayerListener(PlayerListener listener) {
-		listeners.add(listener);
+	public static boolean isStopped() {
+		return stopped;
 	}
 
 	public static void stop() {
 		stopped = true;
+	}
+
+	// Synonym for: setStopped(false);
+	public static void play() {
+		stopped = false;
 	}
 
 	public static boolean isPaused() {
@@ -271,142 +56,85 @@ public class Player {
 		Player.paused = paused;
 	}
 
-	public static boolean isGainControlSupported() {
-		return player != null && player.gainControl != null ? true : false;
-	}
-
-	// Derives a gain value from the volume level as follows:
-	//   volume  0 = minimum gain 
-	//   volume 14 = zero gain
-	//   volume 20 = maximum gain
-	// Values in-between are calculated to dB values
-	public static void setVolume(int value) {
-		if (player == null || player.gainControl == null) {
-			return;
-		}
-		volume = value;
-		float gain = 0.0f;
-		float min = player.gainControl.getMinimum();
-		float max = player.gainControl.getMaximum();
-		if (value >= 20) {
-			volume = 20;
-			gain = max;
-		} else if (value <= 0) {
-			volume = 0;
-			gain = min;
-		} else if (value > 14) {
-			gain = max - (20 - value) * max / 6;
-		} else if (value < 14) {
-			gain = (14 - value) * min / 14;
-		}
-		Util.log(Level.FINE, "Setting volume to: " + volume + " (gain=" + gain + ")");
-		player.gainControl.setValue(gain);
-	}
-
-
 	public static int getVolume() {
 		return volume;
 	}
 
-	public static void fade() {
-		fade = true;
+	// Limits range from -20 to 20
+	public static void setVolume(int value) {
+		volume = value;
+		if (value >= 20) {
+			volume = 20;
+		} else if (value <= 0) {
+			volume = 0;
+		}
+		Util.log(Level.FINE, "Setting volume to: " + volume);
+		if (track != null) {
+			track.setVolume(value);
+		}
 	}
 
 	public static float getGain() {
-		if (player == null || player.gainControl == null) {
+		if (track == null) {
 			return 0.0f;
 		}
-		return player.gainControl.getValue();
-	}
-
-	public static boolean isBalanceControlSupported() {
-		return player != null && player.balanceControl != null ? true : false;
-	}
-
-	// Value can range from -10 to 10
-	public static void setBalance(int value) {
-		if (player == null || player.balanceControl == null) {
-			return;
-		}
-		balance = value;
-		float floatValue = 0.0f;
-		// Assuming balance ranges from -1.0 to 1.0
-		if (value != 0) {
-			floatValue = value / 10.0f;
-		}
-		Util.log(Level.FINE, "Setting balance to: " + balance + "(float value " + floatValue + ")");
-		player.balanceControl.setValue(floatValue);
+		return track.getGain();
 	}
 
 	public static int getBalance() {
 		return balance;
 	}
 
-	// Sets the equalizerEnabled boolean flag as well as setting the equalizer control to either zero or the stored value
+	// Limits range from -10 to 10
+	public static void setBalance(int value) {
+		balance = value;
+		if (value >= 10) {
+			balance = 10;
+		} else if (value <= -10) {
+			balance = -10;
+		}
+		Util.log(Level.FINE, "Setting balance to: " + balance);
+		if (track != null) {
+			track.setBalance(value);
+		}
+	}
+
+	public static boolean isEqualizerEnabled() {
+		return equalizerEnabled;
+	}
+
+	// Sets the equalizerEnabled boolean flag,
+	// and sets the individual bands to either zero or the stored value
 	public static void setEqualizerEnabled(boolean value) {
 		equalizerEnabled = value;
-		for (int i = 0; i < equalizer.length; i++) {
-			if (equalizerEnabled) {
-				setEqualizerControl(i, equalizer[i]);
-			} else {
-				setEqualizerControl(i, 0);
+		if (track != null) {
+			for (int i = 0; i < equalizer.length; i++) {
+				if (equalizerEnabled) {
+					track.setEqualizer(i, equalizer[i]);
+				} else {
+					track.setEqualizer(i, 0);
+				}
 			}
 		}
+	}
+
+	public static int getEqualizer(int band) {
+		return equalizer[band];
 	}
 
 	// Value can range from -10 to 10
 	public static void setEqualizer(int band, int value) {
 		equalizer[band] = value;
-		if (equalizerEnabled) {
-			setEqualizerControl(band, value);
+		if (track != null && equalizerEnabled) {
+			track.setEqualizer(band, value);
 		}
 	}
 
-	private static void setEqualizerControl(int band, int value) {
-		if (player == null || player.equalizerControl == null) {
-			return;
-		}
-		float floatValue = ((float) value) / 10.0f / 5.0f;  // Value can range between -0.2 and +0.2
-		Util.log(Level.FINE, "Setting equalizer band #" + band + " to: " + value + "(float=" + floatValue + ")");
-		for (int i = 0; i < player.channels; i++) {
-			player.equalizerControl.setBandValue(band, i, floatValue);
-		}
-	}
-
-	class WavLineListener implements LineListener {
-		boolean first = true;
-
-		public void update(LineEvent event) {
-			Util.log(Level.FINE, "Line event:" + event);
-			if (first) {
-				first = false;
-				Line line = event.getLine();
-				printInfo(line);
-			}
-			LineEvent.Type type = event.getType();
-			if (type.equals(LineEvent.Type.OPEN)) {
-				Util.log(Level.FINE, "OPEN");
-			}
-			if (type.equals(LineEvent.Type.START)) {
-				Util.log(Level.FINE, "START");
-			}
-			if (type.equals(LineEvent.Type.STOP)) {
-				Util.log(Level.FINE, "STOP");
-			}
-			if (type.equals(LineEvent.Type.CLOSE)) {
-				Util.log(Level.FINE, "CLOSE");
-			}
-		}
-
-		private void printInfo(Line line) {
-			Line.Info info = line.getLineInfo();
-			Util.log(Level.FINE, "Line info: " + info);
-			Control[] controls = line.getControls();
-			for (int i = 0; i < controls.length; i++) {
-				Control control = controls[i];
-				Util.log(Level.FINE, "Control #" + i + ": " + control);
-			}
-		}
-	}
+//	// Convenience method to set all values
+//	public static void setEqualizer() {
+//		for (int i = 0; i < Config.bands; i++) {
+//			setEqualizer(i, equalizer[band]);
+//		}
+//	}
 }
 

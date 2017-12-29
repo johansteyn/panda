@@ -347,17 +347,15 @@ public class Panda extends JFrame {
 		for (String filename: filenames) {
 			Track track = new Track(filename);
 			track.setTitle(filename); // By default, each track's title is the filename (minus the tracks directory name)
-			Player player = track.getPlayer();
-			player.addPlayerListener(new PlayerListener() {
-				public void started(final Player player) {
+			track.addTrackListener(new TrackListener() {
+				public void started(final Track track) {
 					SwingUtilities.invokeLater(new Runnable() {
 						public void run() {
-							int duration = player.getDuration();
+							int duration = track.getDuration();
 							leftLabel.setText(Util.minutesSeconds(0));
 							rightLabel.setText(Util.minutesSeconds(duration));
 							settingPosition = true;
 							positionSlider.setValue(0);
-							Track track = player.getTrack();
 							String s = track.getTitle();
 							// TODO: Make configurable in case some users use something other than "orchestra" (eg: "artist")
 							String orchestra = track.getTag("orchestra");  
@@ -365,12 +363,12 @@ public class Panda extends JFrame {
 								s = s + " - " + orchestra;
 							}
 							trackLabel.setText(s);
-							if (player.isGainControlSupported()) {
+							if (track.isGainControlSupported()) {
 								volumeSlider.setEnabled(true);
 							} else {
 								volumeSlider.setEnabled(false);
 							}
-							if (player.isBalanceControlSupported()) {
+							if (track.isBalanceControlSupported()) {
 								balanceSlider.setEnabled(true);
 							} else {
 								balanceSlider.setEnabled(false);
@@ -378,17 +376,17 @@ public class Panda extends JFrame {
 						}
 					});
 				}
-				public void positionChanged(final Player player) {
+				public void positionChanged(final Track track) {
 					settingPosition = true;
 					SwingUtilities.invokeLater(new Runnable() {
 						public void run() {
-							int duration = player.getDuration();
-							int position = player.getPosition();
+							int duration = track.getDuration();
+							int position = track.getPosition();
 							leftLabel.setText(Util.minutesSeconds(position));
 							rightLabel.setText(Util.minutesSeconds(duration - position));
 							positionSlider.setMinimum(0);
-							positionSlider.setMaximum(player.getDuration());
-							positionSlider.setValue(player.getPosition());
+							positionSlider.setMaximum(track.getDuration());
+							positionSlider.setValue(track.getPosition());
 						}
 					});
 				}
@@ -775,7 +773,6 @@ public class Panda extends JFrame {
 		vbpBox.add(balanceBox);
 		vbpBox.add(presetsBox);
 		vbpBox.add(Box.createVerticalGlue());
-//vbpBox.setBorder(new LineBorder(Color.blue));
 
 		Box lvbpBox = new Box(BoxLayout.X_AXIS);
 		lvbpBox.add(Box.createHorizontalGlue());
@@ -783,7 +780,6 @@ public class Panda extends JFrame {
 		lvbpBox.add(Box.createHorizontalGlue());
 		lvbpBox.add(vbpBox);
 		lvbpBox.add(Box.createHorizontalGlue());
-//lvbpBox.setBorder(new LineBorder(Color.green));
 
 		// Equalizer
 		Box equalizerBox = new Box(BoxLayout.X_AXIS);
@@ -795,7 +791,6 @@ public class Panda extends JFrame {
 			equalizerBox.add(Box.createHorizontalGlue());
 		}
 		equalizerBox.add(Box.createRigidArea(new Dimension(0, 0)));
-//equalizerBox.setBorder(new LineBorder(Color.red));
 
 		Box controlBox2 = new Box(BoxLayout.X_AXIS);
 		if (Config.layout == 1 || Config.layout == 4) {
@@ -833,7 +828,6 @@ public class Panda extends JFrame {
 		JPanel leftPanel = new JPanel(new BorderLayout());
 		JScrollPane treeScrollPane = new JScrollPane(tree);
 		leftPanel.add(treeScrollPane);
-//		leftPanel.add(showCurrentTrackButton, BorderLayout.SOUTH);
 		leftPanel.add(buttonPanel, BorderLayout.SOUTH);
 
 		JPanel rightPanel = new JPanel(new BorderLayout());
@@ -1171,15 +1165,14 @@ System.out.println("*** SPACE");
 				}
 				if (currentTrackIndex >= 0) {
 					Track track = currentTrackPlaylist.get(currentTrackIndex);
-					Player player = track.getPlayer();
-					int position = player.getPosition();
+					int position = track.getPosition();
 					if (newPosition != position) {
-						player.setPosition(newPosition);
+						track.setPosition(newPosition);
 						prevPosition = newPosition;
 					}
 					// Update left and right labels to reflect current slider position - even if player is paused!
 					if (Player.isPaused()) {
-						int duration = player.getDuration();
+						int duration = track.getDuration();
 						// Note: Here we are displaying the position of the slider - not the player.
 						position = newPosition;
 						leftLabel.setText(Util.minutesSeconds(newPosition));
@@ -1578,12 +1571,12 @@ System.out.println("*** SPACE");
 		boolean useDefaults = true;
 		Track track = currentTrackPlaylist.get(currentTrackIndex);
 		String genre = track.getTag("genre");
-		if (genre != null && Config.projectorGenres.contains(genre)) {
-			Player player = track.getPlayer();
-			if (player != null && !player.isPaused()) {
-				// Only display track info if current track is actually playing one of the configured genres
-				useDefaults = false;
-			}
+		if (genre == null) {
+			genre = "unknown";
+		}
+		if (!Player.isPaused() && Config.projectorGenres.contains(genre)) {
+			// Only display track info if current track is actually playing one of the configured genres
+			useDefaults = false;
 		}
 		if (useDefaults) {
 			projector.setDefaults();
@@ -1953,16 +1946,15 @@ System.out.println("*** SPACE");
 						refresh();
 					}
 				});
-				final Player player = track.getPlayer();
 				updateProjector();
 				try {
 					// Ensure volume is restored to user-specified value in case previous track was faded out
 					Player.setVolume(volumeSlider.getValue());
-					player.play();
+					track.play();
 					// Wait specified number of seconds before starting the next track
 					// But only if the end of the track has been reached during play.
 					// ie. not if the "Next" button or "Play Now" menu has been clicked.
-					if (Config.wait > 0 && player.getDuration() == player.getPosition()) {
+					if (Config.wait > 0 && track.getDuration() == track.getPosition()) {
 						Util.pause(1000 * Config.wait);
 					}
 					if (proceed) {
@@ -2003,8 +1995,7 @@ System.out.println("*** SPACE");
 		synchronized void prev() {
 			Track track = currentTrackPlaylist.get(currentTrackIndex);
 			if (track != null) {
-				Player player = track.getPlayer();
-				int position = player.getPosition();
+				int position = track.getPosition();
 				if (position < 4) {
 					// We are less than 4 seconds into a track which is not the first track, so go to previous track
 					currentTrackIndex = findPrevCheckedTrackIndex(currentTrackIndex);
@@ -2026,7 +2017,8 @@ System.out.println("*** SPACE");
 		}
 
 		synchronized void fade() {
-			Player.fade();
+			Track track = currentTrackPlaylist.get(currentTrackIndex);
+			track.fade();
 		}
 	}
 
@@ -2187,12 +2179,9 @@ System.out.println("*** SPACE");
 			} else if (name.equals("Title")) {
 				object = track.getTitle(); 
 			} else if (name.equals("Time")) {
-				Player player = track.getPlayer();
-				if (player != null) {
-					int duration = player.getDuration();
-					object = Util.minutesSeconds(duration); 
-					// TODO: Work out how to make it numeric while still displaying string value...
-				}
+				int duration = track.getDuration();
+				object = Util.minutesSeconds(duration); 
+				// TODO: Work out how to make it numeric while still displaying string value...
 			} else {
 				// The value for this column is contained in a tag
 				String tagName = name.toLowerCase();
